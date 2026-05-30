@@ -1,0 +1,2 @@
+# stash-for-chrome
+

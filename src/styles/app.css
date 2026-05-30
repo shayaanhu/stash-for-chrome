@@ -1,4 +1,4 @@
-@import "@fontsource-variable/geist";
+@import "@fontsource-variable/fraunces/opsz.css";
 @import "@fontsource-variable/inter";
 @import "@fontsource/jetbrains-mono/400.css";
 @import "tailwindcss";
@@ -30,7 +30,7 @@
   --color-accent-hi: #d2825f;
   --color-accent-lo: #b35a3b;
 
-  --font-display: "Geist Variable", "Inter Variable", system-ui, sans-serif;
+  --font-display: "Fraunces Variable", Georgia, "Times New Roman", serif;
   --font-body: "Inter Variable", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
@@ -79,6 +79,7 @@
   background: var(--background);
   font-family: var(--font-body);
   font-synthesis-weight: none;
+  font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -96,7 +97,14 @@ body {
 }
 
 .font-display {
-  letter-spacing: -0.02em;
+  font-optical-sizing: auto;
+  letter-spacing: -0.005em;
+}
+
+/* High-contrast display cut for the big headings */
+.display-hero {
+  font-variation-settings: "opsz" 60;
+  letter-spacing: -0.015em;
 }
 
 button,

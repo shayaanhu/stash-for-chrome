@@ -43,8 +43,8 @@ export function OptionsApp() {
       <Card className="mx-auto max-w-[760px] p-7">
         <header className="mb-7 flex items-center justify-between gap-4">
           <div>
-            <p className="mb-1.5 text-xs font-bold tracking-normal text-accent">Stash</p>
-            <h1 className="font-display text-[28px] font-semibold tracking-normal">Settings</h1>
+            <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-accent">Stash</p>
+            <h1 className="display-hero font-display text-[30px] font-semibold leading-tight">Settings</h1>
           </div>
 
           {status ? (

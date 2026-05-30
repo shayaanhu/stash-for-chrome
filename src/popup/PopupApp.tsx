@@ -1,6 +1,5 @@
 import NumberFlow from "@number-flow/react";
 import {
-  ArchiveRestore,
   Check,
   ChevronDown,
   ChevronRight,
@@ -8,6 +7,7 @@ import {
   Loader2,
   PanelTopClose,
   Pencil,
+  RotateCcw,
   Search,
   Settings,
   Trash2,
@@ -18,7 +18,7 @@ import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "motion/r
 import type { FormEvent, KeyboardEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { StashMascot, type MascotState } from "../components/mascot/StashMascot";
+import { EmptyVisual, type EmptyVariant } from "../components/empty/EmptyVisual";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
@@ -62,7 +62,6 @@ export function PopupApp() {
   const [freshlySavedId, setFreshlySavedId] = useState<string | null>(null);
   const [saveBurst, setSaveBurst] = useState<SaveBurst | null>(null);
   const [restoreBurstId, setRestoreBurstId] = useState<string | null>(null);
-  const [mascotSignal, setMascotSignal] = useState<MascotState>("idle");
 
   const reload = useCallback(async () => {
     const [nextSessions, nextSettings] = await Promise.all([getSessions(), getSettings()]);
@@ -111,23 +110,12 @@ export function PopupApp() {
       .filter((session) => matchesSession(session, query));
   }, [query, sessions, viewMode]);
 
-  const emptyMascotState: MascotState = useMemo(() => {
-    if (query.trim().length > 0) {
-      return "search-miss";
-    }
-
-    if (viewMode === "trash") {
-      return mascotSignal === "trash-empty" ? "trash-empty" : "idle";
-    }
-
-    return mascotSignal === "save" ? "save" : "idle";
-  }, [mascotSignal, query, viewMode]);
+  const emptyVariant: EmptyVariant = query.trim().length > 0 ? "search" : viewMode === "trash" ? "trash" : "library";
 
   async function handleSaveTabs() {
     setIsSaving(true);
     setStatus(null);
 
-    const wasEmpty = activeCount === 0;
     const response = await sendBackgroundRequest({
       type: "SAVE_TABS",
       target: saveTarget
@@ -147,12 +135,10 @@ export function PopupApp() {
     setFreshlySavedId(savedSession.id);
     setExpandedIds((current) => new Set(current).add(savedSession.id));
     setViewMode("library");
-    setMascotSignal(wasEmpty ? "save" : "idle");
     await reload();
 
     window.setTimeout(() => setSaveBurst(null), reduceMotion ? 180 : 700);
     window.setTimeout(() => setFreshlySavedId(null), reduceMotion ? 300 : 1500);
-    window.setTimeout(() => setMascotSignal("idle"), reduceMotion ? 300 : 900);
     window.setTimeout(
       () => {
         toast.success(`Saved ${savedSession.tabs.length} ${savedSession.tabs.length === 1 ? "tab" : "tabs"}.`, {
@@ -212,9 +198,7 @@ export function PopupApp() {
   async function handleEmptyTrash() {
     await emptyTrash();
     await reload();
-    setMascotSignal("trash-empty");
     toast("Trash emptied.");
-    window.setTimeout(() => setMascotSignal("idle"), reduceMotion ? 200 : 850);
   }
 
   async function handleRemoveTab(sessionId: string, tabId: string) {
@@ -275,8 +259,8 @@ export function PopupApp() {
       >
         <header className="mb-3 flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <p className="mb-1 text-xs font-bold tracking-normal text-accent">Stash</p>
-            <h1 className="truncate font-display text-[22px] font-semibold leading-tight tracking-normal">
+            <p className="mb-0.5 text-[11px] font-bold uppercase tracking-[0.14em] text-accent">Stash</p>
+            <h1 className="display-hero truncate font-display text-[25px] font-semibold leading-[1.08] text-ink">
               {viewMode === "trash" ? "Trash" : "Saved sessions"}
             </h1>
           </div>
@@ -289,7 +273,7 @@ export function PopupApp() {
               whileTap={reduceMotion ? undefined : { scale: 0.96 }}
               transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
             >
-              <Button variant="primary" size="lg" onClick={handleSaveTabs} disabled={isSaving} className="w-[120px]">
+              <Button variant="primary" size="lg" onClick={handleSaveTabs} disabled={isSaving} className="min-w-[122px]">
                 {isSaving ? <Loader2 size={16} className="animate-spin" /> : <PanelTopClose size={16} />}
                 <span>{isSaving ? "Saving" : "Save tabs"}</span>
               </Button>
@@ -384,7 +368,7 @@ export function PopupApp() {
                   <EmptyState
                     viewMode={viewMode}
                     query={query}
-                    mascotState={emptyMascotState}
+                    variant={emptyVariant}
                     isSaving={isSaving}
                     reduceMotion={Boolean(reduceMotion)}
                     onSave={handleSaveTabs}
@@ -475,9 +459,9 @@ function SessionList({
               >
                 <div
                   className={cn(
-                    "grid items-center gap-2 px-2.5 py-2.5",
-                    compactMode ? "min-h-[52px]" : "min-h-[64px]",
-                    "grid-cols-[28px_minmax(0,1fr)_auto_auto]"
+                    "grid items-center gap-2.5 px-3 py-2.5",
+                    compactMode ? "min-h-[54px]" : "min-h-[68px]",
+                    "grid-cols-[26px_minmax(0,1fr)_auto]"
                   )}
                 >
                   <Button
@@ -524,31 +508,34 @@ function SessionList({
                     )}
                   </div>
 
-                  <FaviconSpine tabs={session.tabs} isRestoring={isRestoring} reduceMotion={reduceMotion} />
-
-                  <div className="flex items-center gap-1">
-                    {viewMode === "trash" ? (
-                      <>
-                        <IconButton label="Restore session" onClick={() => void onRestoreDeleted(session.id)}>
-                          <Undo2 size={15} />
-                        </IconButton>
-                        <IconButton label="Delete forever" danger onClick={() => void onDeleteForever(session.id)}>
-                          <X size={15} />
-                        </IconButton>
-                      </>
-                    ) : (
-                      <>
-                        <IconButton label="Restore all" onClick={() => void onRestoreAll(session)}>
-                          <ArchiveRestore size={15} />
-                        </IconButton>
-                        <IconButton label="Rename" onClick={() => onRenameStart(session)}>
-                          <Pencil size={15} />
-                        </IconButton>
-                        <IconButton label="Move to trash" danger onClick={() => void onDeleteSession(session)}>
-                          <Trash2 size={15} />
-                        </IconButton>
-                      </>
-                    )}
+                  <div className="relative flex min-w-[58px] items-center justify-end">
+                    <div className="transition-opacity duration-[var(--dur-base)] ease-[var(--ease-standard)] group-hover:opacity-0 group-focus-within:opacity-0">
+                      <FaviconSpine tabs={session.tabs} isRestoring={isRestoring} reduceMotion={reduceMotion} />
+                    </div>
+                    <div className="pointer-events-none absolute right-0 flex translate-x-1 items-center gap-0.5 opacity-0 transition-all duration-[var(--dur-base)] ease-[var(--ease-standard)] group-hover:pointer-events-auto group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-x-0 group-focus-within:opacity-100">
+                      {viewMode === "trash" ? (
+                        <>
+                          <IconButton label="Restore session" quiet onClick={() => void onRestoreDeleted(session.id)}>
+                            <Undo2 size={16} />
+                          </IconButton>
+                          <IconButton label="Delete forever" danger onClick={() => void onDeleteForever(session.id)}>
+                            <X size={16} />
+                          </IconButton>
+                        </>
+                      ) : (
+                        <>
+                          <IconButton label="Restore all" quiet onClick={() => void onRestoreAll(session)}>
+                            <RotateCcw size={16} />
+                          </IconButton>
+                          <IconButton label="Rename" quiet onClick={() => onRenameStart(session)}>
+                            <Pencil size={16} />
+                          </IconButton>
+                          <IconButton label="Move to trash" danger onClick={() => void onDeleteSession(session)}>
+                            <Trash2 size={16} />
+                          </IconButton>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -610,14 +597,14 @@ function SessionList({
 function EmptyState({
   viewMode,
   query,
-  mascotState,
+  variant,
   isSaving,
   reduceMotion,
   onSave
 }: {
   viewMode: ViewMode;
   query: string;
-  mascotState: MascotState;
+  variant: EmptyVariant;
   isSaving: boolean;
   reduceMotion: boolean;
   onSave: () => void;
@@ -637,7 +624,9 @@ function EmptyState({
       transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
       className="grid min-h-[358px] place-content-center rounded-[var(--radius-card)] border border-border bg-surface px-7 py-8 text-center shadow-[var(--shadow-soft)]"
     >
-      <StashMascot state={mascotState} reduceMotion={reduceMotion} className="mx-auto mb-5" />
+      <div className="mb-6">
+        <EmptyVisual variant={variant} reduceMotion={reduceMotion} />
+      </div>
       <p className="mb-2 font-display text-[17px] font-semibold tracking-normal text-ink">{title}</p>
       <p className="mx-auto mb-4 max-w-[260px] text-sm leading-relaxed text-muted">{copy}</p>
       {viewMode === "library" && !isSearchEmpty ? (
@@ -712,11 +701,11 @@ function FaviconSpine({
   const overflow = tabs.length - visibleTabs.length;
 
   return (
-    <div className="flex min-w-[58px] justify-end">
+    <div className="flex items-center justify-end">
       {visibleTabs.map((tab, index) => (
         <motion.span
           key={tab.id}
-          className="-ml-1 first:ml-0"
+          className="-ml-1.5 first:ml-0"
           animate={
             isRestoring && !reduceMotion
               ? { x: (index - 1.5) * 5, y: index % 2 === 0 ? -2 : 2, rotate: (index - 1.5) * 4 }
@@ -725,11 +714,11 @@ function FaviconSpine({
           transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
           style={{ zIndex: visibleTabs.length - index }}
         >
-          <Favicon tab={tab} />
+          <Favicon tab={tab} spine />
         </motion.span>
       ))}
       {overflow > 0 ? (
-        <span className="-ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-[var(--radius-btn)] border border-border bg-chip px-1 font-mono text-[10px] font-semibold text-muted">
+        <span className="-ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-[var(--radius-chip)] border border-border bg-chip px-1 font-mono text-[10px] font-semibold text-muted ring-2 ring-surface">
           +{overflow}
         </span>
       ) : null}
@@ -737,10 +726,11 @@ function FaviconSpine({
   );
 }
 
-function Favicon({ tab, large = false }: { tab: StashTab; large?: boolean }) {
+function Favicon({ tab, large = false, spine = false }: { tab: StashTab; large?: boolean; spine?: boolean }) {
   const className = cn(
-    "inline-flex shrink-0 items-center justify-center rounded-[var(--radius-btn)] border border-border bg-chip object-cover text-[10px] font-bold text-muted shadow-[0_1px_0_rgba(31,27,22,0.05)]",
-    large ? "h-7 w-7" : "h-5 w-5"
+    "inline-flex shrink-0 items-center justify-center rounded-[var(--radius-chip)] border border-border bg-chip object-cover text-[10px] font-bold text-muted shadow-[0_1px_0_rgba(31,27,22,0.05)]",
+    large ? "h-7 w-7" : "h-5 w-5",
+    spine && "ring-2 ring-surface"
   );
 
   if (!tab.favicon) {
@@ -753,27 +743,30 @@ function Favicon({ tab, large = false }: { tab: StashTab; large?: boolean }) {
 function IconButton({
   label,
   danger = false,
+  quiet = false,
   children,
   onClick
 }: {
   label: string;
   danger?: boolean;
+  quiet?: boolean;
   children: ReactNode;
   onClick: () => void;
 }) {
   const reduceMotion = useReducedMotion();
+  const variant = danger ? "danger" : quiet ? "ghost" : "secondary";
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <motion.span
-          whileTap={reduceMotion ? undefined : { scale: 0.96 }}
+          whileTap={reduceMotion ? undefined : { scale: 0.92 }}
           transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
           className="inline-flex"
         >
           <Button
             type="button"
-            variant={danger ? "danger" : "secondary"}
+            variant={variant}
             size="icon"
             aria-label={label}
             onClick={onClick}

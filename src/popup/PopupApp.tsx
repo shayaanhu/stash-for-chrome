@@ -289,7 +289,7 @@ export function PopupApp() {
               whileTap={reduceMotion ? undefined : { scale: 0.96 }}
               transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
             >
-              <Button variant="primary" onClick={handleSaveTabs} disabled={isSaving} className="w-[112px]">
+              <Button variant="primary" size="lg" onClick={handleSaveTabs} disabled={isSaving} className="w-[120px]">
                 {isSaving ? <Loader2 size={16} className="animate-spin" /> : <PanelTopClose size={16} />}
                 <span>{isSaving ? "Saving" : "Save tabs"}</span>
               </Button>
@@ -297,7 +297,7 @@ export function PopupApp() {
           </div>
         </header>
 
-        <label className="mb-2 flex h-10 items-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface px-3 text-muted transition-[border-color,box-shadow] duration-[var(--dur-base)] ease-[var(--ease-standard)] focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15">
+        <label className="mb-2.5 flex h-11 items-center gap-2.5 rounded-[var(--radius-field)] border border-border bg-surface px-3.5 text-muted shadow-[var(--shadow-soft)] transition-[border-color,box-shadow] duration-[var(--dur-base)] ease-[var(--ease-standard)] focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15">
           <Search size={16} />
           <input
             ref={searchInputRef}
@@ -469,8 +469,8 @@ function SessionList({
                   ease: [0.22, 1, 0.36, 1]
                 }}
                 className={cn(
-                  "group overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[0_1px_0_rgba(31,27,22,0.04),0_10px_22px_rgba(31,27,22,0.035)] transition-[border-color,box-shadow,transform] duration-[var(--dur-base)] ease-[var(--ease-standard)] hover:-translate-y-px hover:border-border-strong hover:shadow-[0_1px_0_rgba(31,27,22,0.05),0_12px_26px_rgba(31,27,22,0.055)]",
-                  isFresh && "border-accent/60"
+                  "group overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-soft)] transition-[border-color,box-shadow,transform] duration-[var(--dur-base)] ease-[var(--ease-standard)] hover:-translate-y-px hover:border-border-strong hover:shadow-[var(--shadow-lift)]",
+                  isFresh && "border-accent/70 shadow-[0_0_0_3px_rgba(194,104,71,0.10),var(--shadow-lift)]"
                 )}
               >
                 <div
@@ -635,7 +635,7 @@ function EmptyState({
       initial={reduceMotion ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-      className="grid min-h-[358px] place-content-center rounded-[var(--radius-card)] border border-border bg-surface px-7 py-8 text-center shadow-[0_1px_0_rgba(31,27,22,0.04),0_10px_22px_rgba(31,27,22,0.035)]"
+      className="grid min-h-[358px] place-content-center rounded-[var(--radius-card)] border border-border bg-surface px-7 py-8 text-center shadow-[var(--shadow-soft)]"
     >
       <StashMascot state={mascotState} reduceMotion={reduceMotion} className="mx-auto mb-5" />
       <p className="mb-2 font-display text-[17px] font-semibold tracking-normal text-ink">{title}</p>
@@ -646,7 +646,7 @@ function EmptyState({
           whileTap={reduceMotion ? undefined : { scale: 0.96 }}
           transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
         >
-          <Button variant="primary" onClick={onSave} disabled={isSaving}>
+          <Button variant="primary" size="lg" onClick={onSave} disabled={isSaving}>
             {isSaving ? <Loader2 size={16} className="animate-spin" /> : <PanelTopClose size={16} />}
             {isSaving ? "Saving" : "Save tabs"}
           </Button>
@@ -777,7 +777,7 @@ function IconButton({
             size="icon"
             aria-label={label}
             onClick={onClick}
-            className="h-8 w-8 text-muted"
+            className="text-muted"
           >
             {children}
           </Button>

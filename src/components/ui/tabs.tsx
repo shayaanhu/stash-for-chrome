@@ -30,7 +30,7 @@ const TabsTrigger = forwardRef<ElementRef<typeof TabsPrimitive.Trigger>, TabsTri
     <TabsPrimitive.Trigger
       ref={ref}
       className={cn(
-        "relative z-0 flex h-8 items-center justify-center gap-2 rounded-[var(--radius-btn)] px-3 text-sm font-semibold tracking-normal text-muted outline-none transition-colors duration-[var(--dur-base)] ease-[var(--ease-standard)] focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg data-[state=active]:text-ink",
+        "relative z-0 flex h-9 items-center justify-center gap-2 rounded-[var(--radius-btn)] px-3 text-sm font-semibold tracking-[-0.01em] text-muted outline-none transition-colors duration-[var(--dur-base)] ease-[var(--ease-standard)] hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg data-[state=active]:text-ink",
         className
       )}
       {...props}
@@ -38,7 +38,7 @@ const TabsTrigger = forwardRef<ElementRef<typeof TabsPrimitive.Trigger>, TabsTri
       {active ? (
         <motion.span
           layoutId="stash-active-tab"
-          className="absolute inset-0 -z-10 rounded-[var(--radius-btn)] border border-border bg-surface shadow-[0_1px_0_rgba(31,27,22,0.04)]"
+          className="absolute inset-0 -z-10 rounded-[var(--radius-btn)] border border-border bg-surface shadow-[var(--shadow-soft)]"
           transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
         />
       ) : null}

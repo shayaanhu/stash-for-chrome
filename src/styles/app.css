@@ -27,12 +27,25 @@
   --color-chip: #f1ede5;
   --color-muted-2: #8d8579;
 
+  --color-accent-hi: #d2825f;
+  --color-accent-lo: #b35a3b;
+
   --font-display: "Geist Variable", "Inter Variable", system-ui, sans-serif;
   --font-body: "Inter Variable", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
-  --radius-card: 6px;
-  --radius-btn: 4px;
+  --radius-card: 14px;
+  --radius-btn: 10px;
+  --radius-field: 12px;
+  --radius-chip: 8px;
+
+  --shadow-soft: 0 1px 2px rgba(31, 27, 22, 0.05), 0 4px 12px -3px rgba(31, 27, 22, 0.07);
+  --shadow-lift: 0 2px 4px rgba(31, 27, 22, 0.05), 0 16px 32px -10px rgba(31, 27, 22, 0.14);
+  --shadow-primary: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 1px 2px rgba(166, 80, 52, 0.35),
+    0 6px 16px -4px rgba(194, 104, 71, 0.5);
+  --shadow-primary-hover: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 2px 4px rgba(166, 80, 52, 0.4),
+    0 10px 22px -5px rgba(194, 104, 71, 0.6);
+  --shadow-pop: 0 16px 38px -10px rgba(31, 27, 22, 0.28);
 
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-entrance: cubic-bezier(0.22, 1, 0.36, 1);
@@ -66,7 +79,9 @@
   background: var(--background);
   font-family: var(--font-body);
   font-synthesis-weight: none;
-  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 * {
@@ -75,7 +90,13 @@
 
 body {
   margin: 0;
-  background: var(--background);
+  background:
+    radial-gradient(135% 100% at 50% -10%, #fbf9f4 0%, #f6f3ec 55%, #f3efe6 100%);
+  background-attachment: fixed;
+}
+
+.font-display {
+  letter-spacing: -0.02em;
 }
 
 button,

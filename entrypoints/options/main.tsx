@@ -1,10 +1,10 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { PopupApp } from "./PopupApp";
-import "./popup.css";
+import { OptionsApp } from "../../src/options/OptionsApp";
+import "../../src/styles/app.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <PopupApp />
+    <OptionsApp />
   </React.StrictMode>
 );

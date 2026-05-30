@@ -1,0 +1,97 @@
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/inter";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme {
+  --color-bg: #f8f6f1;
+  --color-surface: #ffffff;
+  --color-ink: #1f1b16;
+  --color-muted: #6b655a;
+  --color-border: #e5e0d7;
+  --color-border-strong: #d8d0c3;
+  --color-accent: #c26847;
+  --color-accent-ink: #a95034;
+  --color-success: #5b7548;
+  --color-success-soft: #edf3e9;
+  --color-success-border: #d7e1cf;
+  --color-danger: #b85450;
+  --color-danger-soft: #fff6f4;
+  --color-danger-border: #e7c8c2;
+  --color-danger-border-strong: #d9b5b2;
+  --color-danger-ink: #9f423c;
+  --color-surface-subtle: #fbfaf7;
+  --color-surface-muted: #eee9df;
+  --color-control-hover: #f0ece4;
+  --color-chip: #f1ede5;
+  --color-muted-2: #8d8579;
+
+  --font-display: "Geist Variable", "Inter Variable", system-ui, sans-serif;
+  --font-body: "Inter Variable", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --radius-card: 6px;
+  --radius-btn: 4px;
+
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-entrance: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-instant: 120ms;
+  --dur-base: 180ms;
+  --dur-entrance: 240ms;
+}
+
+:root {
+  --background: var(--color-bg);
+  --foreground: var(--color-ink);
+  --card: var(--color-surface);
+  --card-foreground: var(--color-ink);
+  --popover: var(--color-surface);
+  --popover-foreground: var(--color-ink);
+  --primary: var(--color-accent);
+  --primary-foreground: var(--color-surface);
+  --secondary: var(--color-surface-muted);
+  --secondary-foreground: var(--color-ink);
+  --muted: var(--color-surface-muted);
+  --muted-foreground: var(--color-muted);
+  --accent: var(--color-accent);
+  --accent-foreground: var(--color-surface);
+  --destructive: var(--color-danger);
+  --destructive-foreground: var(--color-surface);
+  --border: var(--color-border);
+  --input: var(--color-border);
+  --ring: var(--color-accent);
+  --radius: var(--radius-card);
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-body);
+  font-synthesis-weight: none;
+  text-rendering: geometricPrecision;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  letter-spacing: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+}

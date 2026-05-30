@@ -1,35 +1,38 @@
-import type { BackgroundRequest, BackgroundResponse } from "../shared/messages";
-import { addSession } from "../shared/storage";
-import type { SaveTarget } from "../shared/types";
+import { defineBackground } from "wxt/utils/define-background";
+import { addSession, getSettings } from "../src/shared/storage";
+import type { SaveTarget } from "../src/shared/types";
 import {
   createSessionFromChromeTabs,
   isSavableChromeTab,
   isTabPinned
-} from "../shared/session-utils";
+} from "../src/shared/session-utils";
+import type { BackgroundRequest, BackgroundResponse } from "../src/shared/messages";
 
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: "stash-current-tab",
-    title: "Save this tab to Stash",
-    contexts: ["page"]
+export default defineBackground(() => {
+  chrome.runtime.onInstalled.addListener(() => {
+    chrome.contextMenus.create({
+      id: "stash-current-tab",
+      title: "Save this tab to Stash",
+      contexts: ["page"]
+    });
   });
-});
 
-chrome.commands.onCommand.addListener((command) => {
-  if (command === "save-all-tabs") {
-    void saveTabs("current-window");
-  }
-});
+  chrome.commands.onCommand.addListener((command) => {
+    if (command === "save-all-tabs") {
+      void getSettings().then((settings) => saveTabs(settings.saveTarget));
+    }
+  });
 
-chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === "stash-current-tab" && tab?.id) {
-    void saveCurrentTab(tab.id);
-  }
-});
+  chrome.contextMenus.onClicked.addListener((info, tab) => {
+    if (info.menuItemId === "stash-current-tab" && tab?.id) {
+      void saveCurrentTab(tab.id);
+    }
+  });
 
-chrome.runtime.onMessage.addListener((request: BackgroundRequest, _sender, sendResponse) => {
-  void handleRequest(request).then(sendResponse);
-  return true;
+  chrome.runtime.onMessage.addListener((request: BackgroundRequest, _sender, sendResponse) => {
+    void handleRequest(request).then(sendResponse);
+    return true;
+  });
 });
 
 async function handleRequest(request: BackgroundRequest): Promise<BackgroundResponse> {

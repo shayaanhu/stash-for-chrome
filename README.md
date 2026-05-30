@@ -1,6 +1,6 @@
 # Stash for Chrome
 
-A Manifest V3 Chrome extension for saving open tabs into named local sessions and restoring them later.
+A WXT-powered Manifest V3 Chrome extension for saving open tabs into named local sessions and restoring them later.
 
 ## Current Scope
 
@@ -29,18 +29,30 @@ Build the extension:
 npm run build
 ```
 
+Run WXT dev mode:
+
+```sh
+npm run dev
+```
+
 Load it in Chrome:
 
 1. Open `chrome://extensions`.
 2. Enable Developer mode.
 3. Choose Load unpacked.
-4. Select the generated `dist` folder.
+4. Select the generated `dist/chrome-mv3` folder.
+
+In dev mode, WXT also writes a development build under `dist/chrome-mv3`. Reload the unpacked extension after code changes if Chrome does not refresh it automatically.
 
 ## Project Structure
 
-- `public/manifest.json` - Chrome extension manifest.
-- `src/background/service-worker.ts` - keyboard command, context menu, and save orchestration.
+- `wxt.config.ts` - WXT config and generated manifest source.
+- `entrypoints/background.ts` - keyboard command, context menu, and save orchestration.
+- `entrypoints/popup` - popup entrypoint.
+- `entrypoints/options` - options entrypoint.
 - `src/popup` - main session library UI.
 - `src/options` - extension settings page.
+- `src/components` - owned UI and mascot components.
+- `src/styles/app.css` - Tailwind v4 theme, tokens, and font imports.
 - `src/shared` - storage, message, type, and session helpers.
 - `progress` - step-by-step implementation logs.

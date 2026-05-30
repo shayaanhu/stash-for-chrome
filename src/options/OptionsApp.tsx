@@ -1,9 +1,15 @@
 import { Keyboard, LayoutList, PanelTopClose, Rows3 } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
+import { Button } from "../components/ui/button";
+import { Card } from "../components/ui/card";
+import { cn } from "../lib/utils";
 import { defaultSettings, getSettings, updateSettings } from "../shared/storage";
 import type { SaveTarget, StashSettings } from "../shared/types";
 
 export function OptionsApp() {
+  const reduceMotion = useReducedMotion();
   const [settings, setSettings] = useState<StashSettings>(defaultSettings);
   const [status, setStatus] = useState<string | null>(null);
 
@@ -33,76 +39,121 @@ export function OptionsApp() {
   }
 
   return (
-    <main className="options-shell">
-      <section className="settings-panel">
-        <header className="settings-header">
+    <main className="min-h-screen bg-bg px-6 py-14 text-ink">
+      <Card className="mx-auto max-w-[760px] p-7">
+        <header className="mb-7 flex items-center justify-between gap-4">
           <div>
-            <p className="eyebrow">Stash</p>
-            <h1>Settings</h1>
+            <p className="mb-1.5 text-xs font-bold tracking-normal text-accent">Stash</p>
+            <h1 className="font-display text-[28px] font-semibold tracking-normal">Settings</h1>
           </div>
-          {status ? <span className="saved-pill">{status}</span> : null}
+
+          {status ? (
+            <motion.span
+              initial={reduceMotion ? false : { opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="rounded-full border border-success-border bg-success-soft px-2.5 py-1 text-xs font-bold text-success"
+            >
+              {status}
+            </motion.span>
+          ) : null}
         </header>
 
-        <div className="setting-group">
-          <div className="setting-label">
-            <PanelTopClose size={18} />
-            <div>
-              <h2>Default save target</h2>
-              <p>Choose what the popup and keyboard shortcut capture.</p>
-            </div>
-          </div>
-
-          <div className="segmented-control" role="radiogroup" aria-label="Default save target">
-            <button
-              type="button"
-              className={settings.saveTarget === "current-window" ? "active" : ""}
+        <SettingGroup
+          icon={<PanelTopClose size={18} />}
+          title="Default save target"
+          description="Choose what the popup and keyboard shortcut capture."
+        >
+          <div className="grid grid-cols-2 gap-[3px] rounded-[var(--radius-card)] border border-border bg-surface-muted p-[3px]">
+            <SegmentButton
+              active={settings.saveTarget === "current-window"}
               onClick={() => void setSaveTarget("current-window")}
             >
               Current window
-            </button>
-            <button
-              type="button"
-              className={settings.saveTarget === "all-windows" ? "active" : ""}
+            </SegmentButton>
+            <SegmentButton
+              active={settings.saveTarget === "all-windows"}
               onClick={() => void setSaveTarget("all-windows")}
             >
               All windows
-            </button>
+            </SegmentButton>
           </div>
-        </div>
+        </SettingGroup>
 
-        <div className="setting-group">
-          <div className="setting-label">
-            {settings.compactMode ? <Rows3 size={18} /> : <LayoutList size={18} />}
-            <div>
-              <h2>Density</h2>
-              <p>Use tighter rows in the popup.</p>
-            </div>
-          </div>
-
-          <label className="switch-row">
+        <SettingGroup
+          icon={settings.compactMode ? <Rows3 size={18} /> : <LayoutList size={18} />}
+          title="Density"
+          description="Use tighter rows in the popup."
+        >
+          <label className="flex min-h-11 items-center justify-between gap-4 rounded-[var(--radius-card)] border border-border bg-surface-subtle px-3 text-sm font-semibold">
             <span>Compact mode</span>
             <input
               type="checkbox"
               checked={settings.compactMode}
               onChange={(event) => void setCompactMode(event.target.checked)}
+              className="h-[18px] w-[18px] accent-accent"
             />
           </label>
-        </div>
+        </SettingGroup>
 
-        <div className="setting-group">
-          <div className="setting-label">
-            <Keyboard size={18} />
-            <div>
-              <h2>Keyboard shortcut</h2>
-              <p>Command+Shift+S on macOS, Ctrl+Shift+S elsewhere.</p>
-            </div>
-          </div>
-
-          <button type="button" className="secondary-button" onClick={openShortcutSettings}>
+        <SettingGroup
+          icon={<Keyboard size={18} />}
+          title="Keyboard shortcut"
+          description="Command+Shift+S on macOS, Ctrl+Shift+S elsewhere."
+        >
+          <Button variant="secondary" onClick={openShortcutSettings} className="justify-self-start">
             Open shortcuts
-          </button>
-        </div>
-      </section>
+          </Button>
+        </SettingGroup>
+      </Card>
     </main>
+  );
+}
+
+function SettingGroup({
+  icon,
+  title,
+  description,
+  children
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="grid grid-cols-[minmax(0,1fr)_minmax(220px,auto)] items-center gap-6 border-t border-border py-5 max-[640px]:grid-cols-1">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 text-accent">{icon}</span>
+        <div>
+          <h2 className="mb-1 font-display text-[15px] font-semibold tracking-normal">{title}</h2>
+          <p className="m-0 text-sm leading-relaxed text-muted">{description}</p>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function SegmentButton({
+  active,
+  children,
+  onClick
+}: {
+  active: boolean;
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "relative h-8 rounded-[var(--radius-btn)] px-3 text-sm font-bold text-muted transition-colors duration-[var(--dur-base)] ease-[var(--ease-standard)]",
+        active && "border border-border bg-surface text-ink shadow-[0_1px_0_rgba(31,27,22,0.04)]"
+      )}
+      onClick={onClick}
+    >
+      {children}
+    </button>
   );
 }

@@ -1,51 +1,52 @@
 @import "@fontsource-variable/fraunces/opsz.css";
-@import "@fontsource-variable/inter";
+@import "@fontsource-variable/instrument-sans";
 @import "@fontsource/jetbrains-mono/400.css";
 @import "tailwindcss";
 @import "tw-animate-css";
 
 @theme {
-  --color-bg: #f8f6f1;
+  /* Neutrals — clean, near-white, faintly warm so yellow sits naturally */
+  --color-bg: #fbfaf5;
   --color-surface: #ffffff;
-  --color-ink: #1f1b16;
-  --color-muted: #6b655a;
-  --color-border: #e5e0d7;
-  --color-border-strong: #d8d0c3;
-  --color-accent: #c26847;
-  --color-accent-ink: #a95034;
-  --color-success: #5b7548;
-  --color-success-soft: #edf3e9;
-  --color-success-border: #d7e1cf;
-  --color-danger: #b85450;
-  --color-danger-soft: #fff6f4;
-  --color-danger-border: #e7c8c2;
-  --color-danger-border-strong: #d9b5b2;
-  --color-danger-ink: #9f423c;
-  --color-surface-subtle: #fbfaf7;
-  --color-surface-muted: #eee9df;
-  --color-control-hover: #f0ece4;
-  --color-chip: #f1ede5;
-  --color-muted-2: #8d8579;
+  --color-ink: #1b1a16;
+  --color-muted: #6e6d64;
+  --color-muted-2: #9b998d;
+  --color-border: #e9e7df;
+  --color-border-strong: #dad7cc;
+  --color-surface-subtle: #faf8f2;
+  --color-surface-muted: #f1efe7;
+  --color-control-hover: #efece3;
+  --color-chip: #f2f0e8;
 
-  --color-accent-hi: #d2825f;
-  --color-accent-lo: #b35a3b;
+  /* Signature yellow. Fills use --color-accent (dark text on top); text/icons use --color-accent-text */
+  --color-accent: #f5c518;
+  --color-accent-hi: #ffda4f;
+  --color-accent-lo: #e3ad00;
+  --color-accent-text: #94700a;
+
+  --color-success: #4f7a3f;
+  --color-success-soft: #eef4ea;
+  --color-success-border: #d6e3cd;
+  --color-danger: #c0504a;
+  --color-danger-soft: #fdf3f1;
+  --color-danger-border: #ecccc7;
+  --color-danger-border-strong: #ddb6b1;
+  --color-danger-ink: #a23f39;
 
   --font-display: "Fraunces Variable", Georgia, "Times New Roman", serif;
-  --font-body: "Inter Variable", system-ui, sans-serif;
+  --font-body: "Instrument Sans Variable", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
-  --radius-card: 14px;
-  --radius-btn: 10px;
-  --radius-field: 12px;
-  --radius-chip: 8px;
+  --radius-card: 12px;
+  --radius-btn: 8px;
+  --radius-field: 9px;
+  --radius-chip: 6px;
 
-  --shadow-soft: 0 1px 2px rgba(31, 27, 22, 0.05), 0 4px 12px -3px rgba(31, 27, 22, 0.07);
-  --shadow-lift: 0 2px 4px rgba(31, 27, 22, 0.05), 0 16px 32px -10px rgba(31, 27, 22, 0.14);
-  --shadow-primary: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 1px 2px rgba(166, 80, 52, 0.35),
-    0 6px 16px -4px rgba(194, 104, 71, 0.5);
-  --shadow-primary-hover: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 2px 4px rgba(166, 80, 52, 0.4),
-    0 10px 22px -5px rgba(194, 104, 71, 0.6);
-  --shadow-pop: 0 16px 38px -10px rgba(31, 27, 22, 0.28);
+  /* Flat, editorial elevation — no gloss, no glow */
+  --shadow-soft: 0 1px 2px rgba(31, 27, 22, 0.04), 0 1px 1px rgba(31, 27, 22, 0.03);
+  --shadow-card: 0 1px 2px rgba(31, 27, 22, 0.05), 0 8px 24px -14px rgba(31, 27, 22, 0.18);
+  --shadow-lift: 0 2px 4px rgba(31, 27, 22, 0.06), 0 14px 30px -12px rgba(31, 27, 22, 0.16);
+  --shadow-pop: 0 16px 38px -12px rgba(31, 27, 22, 0.26);
 
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-entrance: cubic-bezier(0.22, 1, 0.36, 1);
@@ -73,7 +74,7 @@
   --destructive-foreground: var(--color-surface);
   --border: var(--color-border);
   --input: var(--color-border);
-  --ring: var(--color-accent);
+  --ring: var(--color-accent-lo);
   --radius: var(--radius-card);
   color: var(--foreground);
   background: var(--background);
@@ -91,14 +92,23 @@
 
 body {
   margin: 0;
-  background:
-    radial-gradient(135% 100% at 50% -10%, #fbf9f4 0%, #f6f3ec 55%, #f3efe6 100%);
-  background-attachment: fixed;
+}
+
+/* Warm aged-paper surface: subtle grain over a soft warm wash */
+.paper-bg {
+  background-color: var(--color-bg);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E"),
+    radial-gradient(130% 95% at 100% -10%, #fffdf3 0%, #fbfaf5 48%, #f6f4ec 100%);
 }
 
 .font-display {
   font-optical-sizing: auto;
   letter-spacing: -0.005em;
+}
+
+.font-body {
+  font-family: var(--font-body);
 }
 
 /* High-contrast display cut for the big headings */

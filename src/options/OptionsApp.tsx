@@ -39,11 +39,11 @@ export function OptionsApp() {
   }
 
   return (
-    <main className="min-h-screen bg-bg px-6 py-14 text-ink">
+    <main className="paper-bg min-h-screen px-6 py-14 text-ink">
       <Card className="mx-auto max-w-[760px] p-7">
         <header className="mb-7 flex items-center justify-between gap-4">
           <div>
-            <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-accent">Stash</p>
+            <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-accent-text">Stash</p>
             <h1 className="display-hero font-display text-[30px] font-semibold leading-tight">Settings</h1>
           </div>
 
@@ -124,7 +124,7 @@ function SettingGroup({
   return (
     <section className="grid grid-cols-[minmax(0,1fr)_minmax(220px,auto)] items-center gap-6 border-t border-border py-5 max-[640px]:grid-cols-1">
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 text-accent">{icon}</span>
+        <span className="mt-0.5 text-accent-text">{icon}</span>
         <div>
           <h2 className="mb-1 font-display text-[15px] font-semibold tracking-normal">{title}</h2>
           <p className="m-0 text-sm leading-relaxed text-muted">{description}</p>

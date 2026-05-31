@@ -12,10 +12,7 @@ const TabsList = forwardRef<
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.List
     ref={ref}
-    className={cn(
-      "grid rounded-[var(--radius-card)] border border-border bg-surface-muted p-[3px] text-muted",
-      className
-    )}
+    className={cn("flex items-stretch gap-7 border-b border-border", className)}
     {...props}
   />
 ));
@@ -30,19 +27,19 @@ const TabsTrigger = forwardRef<ElementRef<typeof TabsPrimitive.Trigger>, TabsTri
     <TabsPrimitive.Trigger
       ref={ref}
       className={cn(
-        "relative z-0 flex h-9 items-center justify-center gap-2 rounded-[var(--radius-btn)] px-3 text-sm font-semibold tracking-[-0.01em] text-muted outline-none transition-colors duration-[var(--dur-base)] ease-[var(--ease-standard)] hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg data-[state=active]:text-ink",
+        "relative -mb-px flex items-center gap-2 px-0.5 pb-2.5 pt-1 font-body text-[13px] font-medium text-muted outline-none transition-colors duration-[var(--dur-base)] ease-[var(--ease-standard)] hover:text-ink focus-visible:text-ink data-[state=active]:text-ink",
         className
       )}
       {...props}
     >
+      {children}
       {active ? (
         <motion.span
           layoutId="stash-active-tab"
-          className="absolute inset-0 -z-10 rounded-[var(--radius-btn)] border border-border bg-surface shadow-[var(--shadow-soft)]"
-          transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
+          className="absolute -bottom-px left-0 right-0 h-[2px] rounded-full bg-accent"
+          transition={{ duration: 0.22, ease: [0.2, 0, 0, 1] }}
         />
       ) : null}
-      {children}
     </TabsPrimitive.Trigger>
   )
 );

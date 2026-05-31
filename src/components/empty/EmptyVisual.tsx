@@ -68,7 +68,7 @@ function CardDeck({ reduceMotion }: { reduceMotion: boolean }) {
 function GhostCard({ icon, accent = false }: { icon: React.ReactNode; accent?: boolean }) {
   return (
     <div className="absolute left-1/2 top-1/2 flex h-[74px] w-[128px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[13px] border-2 border-dashed border-border bg-surface-subtle">
-      <span className={cn("flex h-10 w-10 items-center justify-center rounded-full", accent ? "bg-accent/12 text-accent" : "bg-surface-muted text-muted")}>
+      <span className={cn("flex h-10 w-10 items-center justify-center rounded-full", accent ? "bg-accent/20 text-accent-text" : "bg-surface-muted text-muted")}>
         {icon}
       </span>
     </div>

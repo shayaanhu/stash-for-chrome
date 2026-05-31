@@ -253,131 +253,136 @@ export function PopupApp() {
     <TooltipProvider delayDuration={350}>
       <main
         className={cn(
-          "relative min-h-[560px] w-[430px] overflow-hidden bg-bg p-[18px] text-ink",
+          "paper-bg relative flex h-[582px] w-[420px] flex-col overflow-hidden text-ink",
           compactMode && "is-compact"
         )}
       >
-        <header className="mb-3 flex items-center justify-between gap-4">
+        <header className="flex items-start justify-between gap-3 px-5 pb-3 pt-[18px]">
           <div className="min-w-0">
-            <p className="mb-0.5 text-[11px] font-bold uppercase tracking-[0.14em] text-accent">Stash</p>
-            <h1 className="display-hero truncate font-display text-[25px] font-semibold leading-[1.08] text-ink">
-              {viewMode === "trash" ? "Trash" : "Saved sessions"}
-            </h1>
+            <h1 className="display-hero font-display text-[27px] font-semibold leading-none text-ink">Stash</h1>
+            <p className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-accent-text">Tab sessions</p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <IconButton label="Settings" onClick={openOptionsPage}>
               <Settings size={16} />
             </IconButton>
-            <motion.div
-              whileTap={reduceMotion ? undefined : { scale: 0.96 }}
-              transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
-            >
-              <Button variant="primary" size="lg" onClick={handleSaveTabs} disabled={isSaving} className="min-w-[122px]">
-                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <PanelTopClose size={16} />}
+            <motion.div whileTap={reduceMotion ? undefined : { scale: 0.97 }} transition={{ duration: 0.1 }}>
+              <Button variant="primary" size="md" onClick={handleSaveTabs} disabled={isSaving} className="gap-1.5">
+                {isSaving ? <Loader2 size={15} className="animate-spin" /> : <PanelTopClose size={15} />}
                 <span>{isSaving ? "Saving" : "Save tabs"}</span>
               </Button>
             </motion.div>
           </div>
         </header>
 
-        <label className="mb-2.5 flex h-11 items-center gap-2.5 rounded-[var(--radius-field)] border border-border bg-surface px-3.5 text-muted shadow-[var(--shadow-soft)] transition-[border-color,box-shadow] duration-[var(--dur-base)] ease-[var(--ease-standard)] focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15">
-          <Search size={16} />
-          <input
-            ref={searchInputRef}
-            type="search"
-            placeholder="Search sessions, tabs, URLs"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            className="min-w-0 flex-1 border-0 bg-transparent text-sm text-ink outline-none placeholder:text-muted-2"
-            autoFocus
-          />
-        </label>
+        <Tabs
+          value={viewMode}
+          onValueChange={(value) => setViewMode(value as ViewMode)}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <div className="px-5">
+            <TabsList>
+              <TabsTrigger value="library" active={viewMode === "library"}>
+                Library
+                <span className="font-mono text-[11px] text-muted-2">
+                  <NumberFlow value={activeCount} />
+                </span>
+              </TabsTrigger>
+              <TabsTrigger value="trash" active={viewMode === "trash"}>
+                Trash
+                <span className="font-mono text-[11px] text-muted-2">
+                  <NumberFlow value={trashCount} />
+                </span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-        {status ? (
-          <motion.p
-            initial={reduceMotion ? false : { opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-3 rounded-[var(--radius-card)] border border-danger-border bg-danger-soft px-3 py-2 text-sm leading-snug text-danger-ink"
-          >
-            {status}
-          </motion.p>
-        ) : null}
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-4">
+            {status ? (
+              <motion.p
+                initial={reduceMotion ? false : { opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-3 rounded-[var(--radius-btn)] border border-danger-border bg-danger-soft px-3 py-2 text-sm leading-snug text-danger-ink"
+              >
+                {status}
+              </motion.p>
+            ) : null}
 
-        <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as ViewMode)}>
-          <TabsList className="grid-cols-2">
-            <TabsTrigger value="library" active={viewMode === "library"}>
-              Library
-              <span className="font-mono text-xs text-muted-2">
-                <NumberFlow value={activeCount} />
-              </span>
-            </TabsTrigger>
-            <TabsTrigger value="trash" active={viewMode === "trash"}>
-              Trash
-              <span className="font-mono text-xs text-muted-2">
-                <NumberFlow value={trashCount} />
-              </span>
-            </TabsTrigger>
-          </TabsList>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={`${viewMode}-${query.trim() ? "search" : "all"}`}
+                initial={reduceMotion ? false : { opacity: 0, y: 3 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -3 }}
+                transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
+              >
+                <TabsContent value={viewMode} className="mt-0">
+                  {viewMode === "trash" && trashCount > 0 ? (
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">30-day trash</span>
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs font-semibold text-accent-text hover:bg-transparent hover:text-ink" onClick={handleEmptyTrash}>
+                        Empty trash
+                      </Button>
+                    </div>
+                  ) : null}
 
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={`${viewMode}-${query.trim() ? "search" : "all"}`}
-              initial={reduceMotion ? false : { opacity: 0, y: 3 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -3 }}
-              transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
-            >
-              <TabsContent value={viewMode}>
-                {viewMode === "trash" && trashCount > 0 ? (
-                  <div className="-mt-1 mb-3 flex items-center justify-between text-xs text-muted">
-                    <span>30-day trash</span>
-                    <Button variant="ghost" size="sm" className="h-7 px-1 text-xs text-accent" onClick={handleEmptyTrash}>
-                      Empty trash
-                    </Button>
-                  </div>
-                ) : null}
-
-                {visibleSessions.length > 0 ? (
-                  <SessionList
-                    sessions={visibleSessions}
-                    expandedIds={expandedIds}
-                    editingId={editingId}
-                    draftName={draftName}
-                    viewMode={viewMode}
-                    freshlySavedId={freshlySavedId}
-                    restoreBurstId={restoreBurstId}
-                    compactMode={compactMode}
-                    reduceMotion={Boolean(reduceMotion)}
-                    onDraftNameChange={setDraftName}
-                    onToggleExpanded={toggleExpanded}
-                    onRenameStart={startRename}
-                    onRenameSubmit={submitRename}
-                    onRenameKeyDown={handleRenameKeyDown}
-                    onRestoreAll={handleRestoreAll}
-                    onRestoreTab={handleRestoreTab}
-                    onDeleteSession={handleDeleteSession}
-                    onDeleteForever={handleDeleteForever}
-                    onRestoreDeleted={async (sessionId) => {
-                      await restoreDeletedSession(sessionId);
-                      await reload();
-                    }}
-                    onRemoveTab={handleRemoveTab}
-                  />
-                ) : (
-                  <EmptyState
-                    viewMode={viewMode}
-                    query={query}
-                    variant={emptyVariant}
-                    isSaving={isSaving}
-                    reduceMotion={Boolean(reduceMotion)}
-                    onSave={handleSaveTabs}
-                  />
-                )}
-              </TabsContent>
-            </motion.div>
-          </AnimatePresence>
+                  {visibleSessions.length > 0 ? (
+                    <SessionList
+                      sessions={visibleSessions}
+                      expandedIds={expandedIds}
+                      editingId={editingId}
+                      draftName={draftName}
+                      viewMode={viewMode}
+                      freshlySavedId={freshlySavedId}
+                      restoreBurstId={restoreBurstId}
+                      compactMode={compactMode}
+                      reduceMotion={Boolean(reduceMotion)}
+                      onDraftNameChange={setDraftName}
+                      onToggleExpanded={toggleExpanded}
+                      onRenameStart={startRename}
+                      onRenameSubmit={submitRename}
+                      onRenameKeyDown={handleRenameKeyDown}
+                      onRestoreAll={handleRestoreAll}
+                      onRestoreTab={handleRestoreTab}
+                      onDeleteSession={handleDeleteSession}
+                      onDeleteForever={handleDeleteForever}
+                      onRestoreDeleted={async (sessionId) => {
+                        await restoreDeletedSession(sessionId);
+                        await reload();
+                      }}
+                      onRemoveTab={handleRemoveTab}
+                    />
+                  ) : (
+                    <EmptyState
+                      viewMode={viewMode}
+                      query={query}
+                      variant={emptyVariant}
+                      isSaving={isSaving}
+                      reduceMotion={Boolean(reduceMotion)}
+                      onSave={handleSaveTabs}
+                    />
+                  )}
+                </TabsContent>
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </Tabs>
+
+        <div className="border-t border-border bg-surface/50 px-5 py-3 backdrop-blur-sm">
+          <label className="flex h-9 items-center gap-2.5 rounded-[var(--radius-field)] border border-border bg-surface px-3 text-muted-2 transition-[border-color] duration-[var(--dur-base)] ease-[var(--ease-standard)] focus-within:border-accent">
+            <Search size={15} />
+            <input
+              ref={searchInputRef}
+              type="search"
+              placeholder="Search sessions, tabs, URLs"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              className="min-w-0 flex-1 border-0 bg-transparent text-[13px] text-ink outline-none placeholder:text-muted-2"
+            />
+            <kbd className="inline-flex h-5 shrink-0 items-center rounded border border-border bg-surface-subtle px-1.5 font-mono text-[10px] text-muted-2">⌘K</kbd>
+          </label>
+        </div>
 
         <AnimatePresence>{saveBurst ? <SaveChoreography burst={saveBurst} reduceMotion={Boolean(reduceMotion)} /> : null}</AnimatePresence>
         <Toaster />
@@ -431,7 +436,7 @@ function SessionList({
 }) {
   return (
     <LayoutGroup>
-      <motion.section className="grid gap-2.5 pb-14" aria-label={viewMode === "trash" ? "Deleted sessions" : "Saved sessions"}>
+      <motion.section className="grid gap-2" aria-label={viewMode === "trash" ? "Deleted sessions" : "Saved sessions"}>
         <AnimatePresence initial={false}>
           {sessions.map((session, index) => {
             const isExpanded = expandedIds.has(session.id);
@@ -453,8 +458,8 @@ function SessionList({
                   ease: [0.22, 1, 0.36, 1]
                 }}
                 className={cn(
-                  "group overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-soft)] transition-[border-color,box-shadow,transform] duration-[var(--dur-base)] ease-[var(--ease-standard)] hover:-translate-y-px hover:border-border-strong hover:shadow-[var(--shadow-lift)]",
-                  isFresh && "border-accent/70 shadow-[0_0_0_3px_rgba(194,104,71,0.10),var(--shadow-lift)]"
+                  "group overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-soft)] transition-[border-color,box-shadow] duration-[var(--dur-base)] ease-[var(--ease-standard)] hover:border-border-strong hover:shadow-[var(--shadow-card)]",
+                  isFresh && "border-accent shadow-[0_0_0_3px_rgba(245,197,24,0.18),var(--shadow-card)]"
                 )}
               >
                 <div
@@ -615,7 +620,7 @@ function EmptyState({
     ? "Try a session name, tab title, or URL."
     : viewMode === "trash"
       ? "Deleted sessions will wait here for 30 days."
-      : "Clear the tab strip without losing the trail.";
+      : "Save your tabs. Clear your head.";
 
   return (
     <motion.section

@@ -12,7 +12,10 @@ const TabsList = forwardRef<
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.List
     ref={ref}
-    className={cn("flex items-stretch gap-7 border-b border-border", className)}
+    className={cn(
+      "inline-flex items-center gap-1 rounded-full border border-border/70 bg-surface-muted p-1 shadow-[inset_0_1px_2px_rgba(25,42,27,0.07)]",
+      className
+    )}
     {...props}
   />
 ));
@@ -27,19 +30,20 @@ const TabsTrigger = forwardRef<ElementRef<typeof TabsPrimitive.Trigger>, TabsTri
     <TabsPrimitive.Trigger
       ref={ref}
       className={cn(
-        "relative -mb-px flex items-center gap-2 px-0.5 pb-2.5 pt-1 font-body text-[13px] font-medium text-muted outline-none transition-colors duration-[var(--dur-base)] ease-[var(--ease-standard)] hover:text-ink focus-visible:text-ink data-[state=active]:text-ink",
+        "relative flex items-center gap-2 rounded-full px-3.5 py-1.5 font-body text-[13px] font-semibold outline-none transition-colors duration-[var(--dur-fast)] ease-[var(--ease-std)]",
+        active ? "text-ink" : "text-muted hover:text-ink",
         className
       )}
       {...props}
     >
-      {children}
-      {active ? (
+      {active && (
         <motion.span
-          layoutId="stash-active-tab"
-          className="absolute -bottom-px left-0 right-0 h-[2px] rounded-full bg-accent"
-          transition={{ duration: 0.22, ease: [0.2, 0, 0, 1] }}
+          layoutId="stash-tab-indicator"
+          className="absolute inset-0 rounded-full bg-surface shadow-[0_1px_2px_rgba(25,42,27,0.10),0_2px_6px_-2px_rgba(25,42,27,0.12)]"
+          transition={{ type: "spring", stiffness: 520, damping: 40 }}
         />
-      ) : null}
+      )}
+      <span className="relative z-10 flex items-center gap-2">{children}</span>
     </TabsPrimitive.Trigger>
   )
 );
@@ -49,11 +53,7 @@ const TabsContent = forwardRef<
   ElementRef<typeof TabsPrimitive.Content>,
   ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
 >(({ className, ...props }, ref) => (
-  <TabsPrimitive.Content
-    ref={ref}
-    className={cn("mt-3 outline-none", className)}
-    {...props}
-  />
+  <TabsPrimitive.Content ref={ref} className={cn("mt-0 outline-none", className)} {...props} />
 ));
 TabsContent.displayName = TabsPrimitive.Content.displayName;
 

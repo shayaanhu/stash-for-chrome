@@ -39,7 +39,7 @@ export function OptionsApp() {
   }
 
   return (
-    <main className="paper-bg min-h-screen px-6 py-14 text-ink">
+    <main className="paper-bg min-h-screen px-6 py-12 text-ink">
       <Card className="mx-auto max-w-[760px] p-7">
         <header className="mb-7 flex items-center justify-between gap-4">
           <div>

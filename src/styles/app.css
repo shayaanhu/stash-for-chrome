@@ -1,136 +1,148 @@
 @import "@fontsource-variable/fraunces/opsz.css";
-@import "@fontsource-variable/instrument-sans";
+@import "@fontsource-variable/plus-jakarta-sans";
 @import "@fontsource/jetbrains-mono/400.css";
 @import "tailwindcss";
 @import "tw-animate-css";
 
 @theme {
-  /* Neutrals — clean, near-white, faintly warm so yellow sits naturally */
-  --color-bg: #fbfaf5;
-  --color-surface: #ffffff;
-  --color-ink: #1b1a16;
-  --color-muted: #6e6d64;
-  --color-muted-2: #9b998d;
-  --color-border: #e9e7df;
-  --color-border-strong: #dad7cc;
-  --color-surface-subtle: #faf8f2;
-  --color-surface-muted: #f1efe7;
-  --color-control-hover: #efece3;
-  --color-chip: #f2f0e8;
+  /* Sage / forest — the stash palette */
+  --color-bg:           #ECF2EC;
+  --color-surface:      #FFFFFF;
+  --color-ink:          #192A1B;
+  --color-muted:        #587060;
+  --color-muted-2:      #8AA48E;
+  --color-border:       #D8E6D9;
+  --color-border-strong:#C4D6C6;
+  --color-surface-subtle:#F4FAF4;
+  --color-surface-muted: #E4EDE4;
+  --color-control-hover: #DDE9DD;
+  --color-chip:          #E8F0E8;
 
-  /* Signature yellow. Fills use --color-accent (dark text on top); text/icons use --color-accent-text */
-  --color-accent: #f5c518;
-  --color-accent-hi: #ffda4f;
-  --color-accent-lo: #e3ad00;
-  --color-accent-text: #94700a;
+  /* Accent — forest green. Fills: bg-accent. Text: text-accent-text */
+  --color-accent:      #3A7A52;
+  --color-accent-hi:   #4A9264;
+  --color-accent-lo:   #2A6040;
+  --color-accent-text: #2A6040;
+  --color-accent-soft: #E0EDE3;
 
-  --color-success: #4f7a3f;
-  --color-success-soft: #eef4ea;
-  --color-success-border: #d6e3cd;
-  --color-danger: #c0504a;
-  --color-danger-soft: #fdf3f1;
-  --color-danger-border: #ecccc7;
-  --color-danger-border-strong: #ddb6b1;
-  --color-danger-ink: #a23f39;
+  --color-success:        #3A7A52;
+  --color-success-soft:   #E0EDE3;
+  --color-success-border: #C0D9C6;
+  --color-danger:         #B84040;
+  --color-danger-soft:    #FCEAEA;
+  --color-danger-border:  #E8C4C4;
+  --color-danger-border-strong: #D8A8A8;
+  --color-danger-ink:     #983030;
 
-  --font-display: "Fraunces Variable", Georgia, "Times New Roman", serif;
-  --font-body: "Instrument Sans Variable", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-display:  "Fraunces Variable", Georgia, serif;
+  --font-body:     "Plus Jakarta Sans Variable", system-ui, sans-serif;
+  --font-mono:     "JetBrains Mono", ui-monospace, monospace;
 
-  --radius-card: 12px;
-  --radius-btn: 8px;
-  --radius-field: 9px;
-  --radius-chip: 6px;
+  --radius-card:  14px;
+  --radius-btn:   999px;
+  --radius-field: 999px;
+  --radius-chip:  999px;
 
-  /* Flat, editorial elevation — no gloss, no glow */
-  --shadow-soft: 0 1px 2px rgba(31, 27, 22, 0.04), 0 1px 1px rgba(31, 27, 22, 0.03);
-  --shadow-card: 0 1px 2px rgba(31, 27, 22, 0.05), 0 8px 24px -14px rgba(31, 27, 22, 0.18);
-  --shadow-lift: 0 2px 4px rgba(31, 27, 22, 0.06), 0 14px 30px -12px rgba(31, 27, 22, 0.16);
-  --shadow-pop: 0 16px 38px -12px rgba(31, 27, 22, 0.26);
+  /* Physical, tight shadows — depth without glow */
+  --shadow-xs:   0 1px 2px rgba(25, 42, 27, 0.05);
+  --shadow-sm:   0 1px 2px rgba(25, 42, 27, 0.05), 0 1px 4px -1px rgba(25, 42, 27, 0.04);
+  --shadow-md:   0 2px 4px rgba(25, 42, 27, 0.06), 0 4px 16px -4px rgba(25, 42, 27, 0.10);
+  --shadow-pop:  0 8px 32px -8px rgba(25, 42, 27, 0.22);
 
-  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-  --ease-entrance: cubic-bezier(0.22, 1, 0.36, 1);
-  --dur-instant: 120ms;
-  --dur-base: 180ms;
-  --dur-entrance: 240ms;
+  --ease-std:     cubic-bezier(0.2, 0, 0, 1);
+  --ease-spring:  cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast:     100ms;
+  --dur-base:     160ms;
+  --dur-slow:     240ms;
 }
 
 :root {
-  --background: var(--color-bg);
-  --foreground: var(--color-ink);
-  --card: var(--color-surface);
-  --card-foreground: var(--color-ink);
-  --popover: var(--color-surface);
-  --popover-foreground: var(--color-ink);
-  --primary: var(--color-accent);
-  --primary-foreground: var(--color-surface);
-  --secondary: var(--color-surface-muted);
-  --secondary-foreground: var(--color-ink);
-  --muted: var(--color-surface-muted);
-  --muted-foreground: var(--color-muted);
-  --accent: var(--color-accent);
-  --accent-foreground: var(--color-surface);
-  --destructive: var(--color-danger);
-  --destructive-foreground: var(--color-surface);
-  --border: var(--color-border);
-  --input: var(--color-border);
-  --ring: var(--color-accent-lo);
-  --radius: var(--radius-card);
-  color: var(--foreground);
-  background: var(--background);
-  font-family: var(--font-body);
+  --background:          var(--color-bg);
+  --foreground:          var(--color-ink);
+  --card:                var(--color-surface);
+  --card-foreground:     var(--color-ink);
+  --popover:             var(--color-surface);
+  --popover-foreground:  var(--color-ink);
+  --primary:             var(--color-accent);
+  --primary-foreground:  #ffffff;
+  --secondary:           var(--color-surface-muted);
+  --secondary-foreground:var(--color-ink);
+  --muted:               var(--color-surface-muted);
+  --muted-foreground:    var(--color-muted);
+  --destructive:         var(--color-danger);
+  --border:              var(--color-border);
+  --input:               var(--color-border);
+  --ring:                var(--color-accent);
+  --radius:              var(--radius-card);
+
+  color:             var(--foreground);
+  background:        var(--background);
+  font-family:       var(--font-body);
   font-synthesis-weight: none;
   font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
+  text-rendering:    optimizeLegibility;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
   margin: 0;
+  background: var(--color-bg);
 }
 
-/* Warm aged-paper surface: subtle grain over a soft warm wash */
 .paper-bg {
   background-color: var(--color-bg);
   background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E"),
-    radial-gradient(130% 95% at 100% -10%, #fffdf3 0%, #fbfaf5 48%, #f6f4ec 100%);
+    radial-gradient(115% 85% at 100% -10%, #e2f1e6 0%, transparent 52%),
+    radial-gradient(110% 80% at -8% 108%, #cbe3d1 0%, transparent 46%),
+    radial-gradient(90% 70% at 50% 45%, #f4faf4 0%, transparent 70%);
 }
-
-.font-display {
-  font-optical-sizing: auto;
-  letter-spacing: -0.005em;
+/* Fine grain so the canvas reads as paper, not flat fill */
+.paper-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
 }
+.paper-bg > * { position: relative; z-index: 1; }
 
-.font-body {
-  font-family: var(--font-body);
-}
+/* Display type */
+.font-display       { font-family: var(--font-display); font-optical-sizing: auto; }
+.wordmark           { font-family: var(--font-display); font-optical-sizing: auto; font-variation-settings: "opsz" 44, "wght" 600; letter-spacing: -0.03em; }
+.display-hero       { font-variation-settings: "opsz" 72; letter-spacing: -0.04em; }
+.display-title      { font-variation-settings: "opsz" 32; letter-spacing: -0.025em; }
+.display-emphasis   { font-variation-settings: "opsz" 40, "wght" 560; letter-spacing: -0.02em; }
 
-/* High-contrast display cut for the big headings */
-.display-hero {
-  font-variation-settings: "opsz" 60;
-  letter-spacing: -0.015em;
-}
+button, input { font: inherit; }
 
-button,
-input {
-  font: inherit;
-}
-
-button {
-  letter-spacing: 0;
-}
-
+/* Focus — keyboard only, never on click */
 :focus-visible {
-  outline: 2px solid var(--ring);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
+  border-radius: var(--radius-btn);
+}
+button:focus-visible,
+[role="tab"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 3px var(--color-accent);
+}
+/* Inputs and labels never show the global focus ring */
+input:focus-visible,
+label:focus-within {
+  outline: none;
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 20%, transparent);
 }
+
+/* Scrollbar — subtle */
+::-webkit-scrollbar       { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 99px; }

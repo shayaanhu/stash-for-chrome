@@ -480,17 +480,17 @@ function SessionList({
                     type="button"
                     aria-label={isExpanded ? "Collapse" : "Expand"}
                     onClick={() => onToggleExpanded(session.id)}
-                    whileHover={{ scale: 1.25 }}
-                    whileTap={{ scale: 0.8 }}
-                    transition={{ type: "spring", stiffness: 500, damping: 20 }}
-                    className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-2 transition-colors hover:text-ink"
+                    whileHover={{ scale: 1.15 }}
+                    whileTap={{ scale: 0.88 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 22 }}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/50 bg-surface-subtle text-muted shadow-[var(--shadow-xs)] transition-all duration-[var(--dur-fast)] hover:border-border-strong hover:bg-control-hover hover:text-ink hover:shadow-[var(--shadow-sm)]"
                   >
                     <motion.span
                       animate={{ rotate: isExpanded ? 90 : 0 }}
                       transition={{ type: "spring", stiffness: 400, damping: 24 }}
                       className="inline-flex"
                     >
-                      <ChevronRight size={13} />
+                      <ChevronRight size={16} />
                     </motion.span>
                   </motion.button>
 

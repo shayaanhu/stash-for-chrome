@@ -45,6 +45,7 @@ export function PopupApp() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
+  const [originalName, setOriginalName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
   const [freshlySavedId, setFreshlySavedId] = useState<string | null>(null);
@@ -154,7 +155,7 @@ export function PopupApp() {
   async function handleDeleteSession(session: StashSession) {
     await sendBackgroundRequest({ type: "SOFT_DELETE_SESSION", sessionId: session.id });
     await reload();
-    toast("Moved to trash.", {
+    toast.success("Moved to trash.", {
       action: {
         label: "Undo",
         onClick: () =>
@@ -166,7 +167,7 @@ export function PopupApp() {
   async function handleDeleteForever(session: StashSession) {
     await sendBackgroundRequest({ type: "DELETE_FOREVER", sessionId: session.id });
     await reload();
-    toast("Deleted forever.", {
+    toast.success("Deleted forever.", {
       action: { label: "Undo", onClick: () => void reAddSessions([session]) },
     });
   }
@@ -175,8 +176,20 @@ export function PopupApp() {
     const trashSessions = sessions.filter((s) => s.deletedAt);
     await sendBackgroundRequest({ type: "EMPTY_TRASH" });
     await reload();
-    toast("Trash emptied.", {
+    toast.success("Trash emptied.", {
       action: { label: "Undo", onClick: () => void reAddSessions(trashSessions) },
+    });
+  }
+
+  async function handleRestoreDeleted(id: string) {
+    await sendBackgroundRequest({ type: "RESTORE_DELETED_SESSION", sessionId: id });
+    await reload();
+    toast.success("Restored from trash.", {
+      action: {
+        label: "Undo",
+        onClick: () =>
+          void sendBackgroundRequest({ type: "SOFT_DELETE_SESSION", sessionId: id }).then(reload),
+      },
     });
   }
 
@@ -196,21 +209,54 @@ export function PopupApp() {
   function startRename(session: StashSession) {
     setEditingId(session.id);
     setDraftName("");
+    setOriginalName(session.name);
   }
 
   async function submitRename(e?: FormEvent<HTMLFormElement>) {
     e?.preventDefault();
     if (!editingId) return;
-    await sendBackgroundRequest({ type: "RENAME_SESSION", sessionId: editingId, name: draftName });
+
+    const newName = draftName.trim();
+    const oldName = originalName;
+
+    // If the name hasn't changed or is empty, restore the old name in sessions and exit
+    if (!newName || newName === oldName.trim()) {
+      setSessions((prev) =>
+        prev.map((s) => (s.id === editingId ? { ...s, name: oldName } : s))
+      );
+      setEditingId(null);
+      setDraftName("");
+      setOriginalName("");
+      return;
+    }
+
+    await sendBackgroundRequest({ type: "RENAME_SESSION", sessionId: editingId, name: newName });
+    const targetId = editingId;
     setEditingId(null);
     setDraftName("");
+    setOriginalName("");
     await reload();
+
+    toast.success(`Renamed to "${newName}".`, {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          void sendBackgroundRequest({ type: "RENAME_SESSION", sessionId: targetId, name: oldName }).then(reload);
+        },
+      },
+    });
   }
 
   function handleRenameKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Escape") {
+      if (editingId && originalName) {
+        setSessions((prev) =>
+          prev.map((s) => (s.id === editingId ? { ...s, name: originalName } : s))
+        );
+      }
       setEditingId(null);
       setDraftName("");
+      setOriginalName("");
       void reload();
     }
   }
@@ -379,10 +425,7 @@ export function PopupApp() {
                       onRestoreTab={handleRestoreTab}
                       onDeleteSession={handleDeleteSession}
                       onDeleteForever={handleDeleteForever}
-                      onRestoreDeleted={async (id) => {
-                        await sendBackgroundRequest({ type: "RESTORE_DELETED_SESSION", sessionId: id });
-                        await reload();
-                      }}
+                      onRestoreDeleted={handleRestoreDeleted}
                       onRemoveTab={handleRemoveTab}
                     />
                   ) : (

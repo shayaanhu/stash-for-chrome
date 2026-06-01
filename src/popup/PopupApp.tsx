@@ -303,8 +303,8 @@ export function PopupApp() {
                 Library
                 {activeCount > 0 && (
                   <span className={cn(
-                    "font-mono text-[11px]",
-                    viewMode === "library" ? "text-accent-text" : "text-muted-2",
+                    "inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full px-1 font-mono text-[10px] font-semibold leading-none transition-colors duration-[var(--dur-fast)]",
+                    viewMode === "library" ? "bg-accent/15 text-accent-text" : "bg-ink/[0.07] text-muted-2",
                   )}>
                     <NumberFlow value={activeCount} />
                   </span>
@@ -314,8 +314,8 @@ export function PopupApp() {
                 Trash
                 {trashCount > 0 && (
                   <span className={cn(
-                    "font-mono text-[11px]",
-                    viewMode === "trash" ? "text-accent-text" : "text-muted-2",
+                    "inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full px-1 font-mono text-[10px] font-semibold leading-none transition-colors duration-[var(--dur-fast)]",
+                    viewMode === "trash" ? "bg-accent/15 text-accent-text" : "bg-ink/[0.07] text-muted-2",
                   )}>
                     <NumberFlow value={trashCount} />
                   </span>
@@ -715,7 +715,7 @@ function RestoreButton({
           whileHover={{ scale: 1.12 }}
           whileTap={{ scale: 0.84 }}
           transition={{ type: "spring", stiffness: 480, damping: 20 }}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-[image:linear-gradient(180deg,#FFFFFF_0%,var(--color-surface-subtle)_100%)] text-accent-text shadow-[var(--shadow-raised)] transition-colors duration-[var(--dur-fast)] hover:border-accent hover:bg-accent hover:bg-none hover:text-[#FFF2BD]"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-[image:linear-gradient(180deg,#FFFFFF_0%,var(--color-surface-subtle)_100%)] text-accent-text shadow-[var(--shadow-raised)] transition-[color,box-shadow,border-color] duration-[var(--dur-fast)] hover:border-accent hover:bg-accent hover:bg-none hover:text-[#FFF2BD] hover:shadow-[var(--shadow-primary)]"
         >
           {icon}
         </motion.button>

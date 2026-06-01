@@ -30,7 +30,7 @@ const TabsTrigger = forwardRef<ElementRef<typeof TabsPrimitive.Trigger>, TabsTri
     <TabsPrimitive.Trigger
       ref={ref}
       className={cn(
-        "relative flex items-center gap-2 rounded-full px-3.5 py-1.5 font-body text-[13px] font-semibold outline-none transition-[color,transform] duration-[var(--dur-fast)] ease-[var(--ease-std)] active:scale-[0.94]",
+        "relative flex min-w-[82px] items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 font-body text-[13px] font-semibold leading-none outline-none transition-[color,transform] duration-[var(--dur-fast)] ease-[var(--ease-std)] active:scale-[0.94]",
         active ? "text-ink" : "text-muted hover:text-ink",
         className
       )}

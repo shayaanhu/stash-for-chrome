@@ -466,7 +466,7 @@ function SessionList({
                 }}
                 className={cn(
                   // Accent spine is an inset box-shadow so it follows the rounded edge the full height (no corner clipping)
-                  "group relative overflow-hidden rounded-r-[var(--radius-card)] rounded-l-none border border-border bg-surface shadow-[inset_3px_0_0_0_var(--color-accent),var(--shadow-sm)] transition-shadow duration-[var(--dur-base)] hover:border-border-strong hover:shadow-[inset_3px_0_0_0_var(--color-accent),var(--shadow-md)]",
+                  "group relative overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-sm)] transition-shadow duration-[var(--dur-base)] hover:border-border-strong hover:shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-md)]",
                   isFresh && "ring-2 ring-accent/30",
                 )}
               >

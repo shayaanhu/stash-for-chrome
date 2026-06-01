@@ -1,58 +1,112 @@
-import { Keyboard, LayoutList, PanelTopClose, Rows3 } from "lucide-react";
+import { Download, Keyboard, LayoutList, PanelTopClose, Rows3, Upload } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
-import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import type { ChangeEvent, ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { cn } from "../lib/utils";
-import { defaultSettings, getSettings, updateSettings } from "../shared/storage";
-import type { SaveTarget, StashSettings } from "../shared/types";
+import { sendBackgroundRequest } from "../shared/messages";
+import { SCHEMA_VERSION, defaultSettings, getSessions, getSettings, normalizeSessions, updateSettings } from "../shared/storage";
+import type { SaveTarget, StashSession, StashSettings } from "../shared/types";
 
 export function OptionsApp() {
   const reduceMotion = useReducedMotion();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [settings, setSettings] = useState<StashSettings>(defaultSettings);
+  const [sessions, setSessions] = useState<StashSession[]>([]);
   const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
     void getSettings().then(setSettings);
+    void refreshSessions();
+    const onChanged = () => void refreshSessions();
+    chrome.storage.onChanged.addListener(onChanged);
+    return () => chrome.storage.onChanged.removeListener(onChanged);
   }, []);
 
+  async function refreshSessions() {
+    setSessions(await getSessions());
+  }
+
   async function setSaveTarget(saveTarget: SaveTarget) {
-    const nextSettings = await updateSettings({ saveTarget });
-    setSettings(nextSettings);
-    flashSaved();
+    setSettings(await updateSettings({ saveTarget }));
+    flash("Saved");
   }
 
   async function setCompactMode(compactMode: boolean) {
-    const nextSettings = await updateSettings({ compactMode });
-    setSettings(nextSettings);
-    flashSaved();
+    setSettings(await updateSettings({ compactMode }));
+    flash("Saved");
   }
 
   function openShortcutSettings() {
-    chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
+    void chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
   }
 
-  function flashSaved() {
-    setStatus("Saved");
-    window.setTimeout(() => setStatus(null), 1400);
+  function flash(message: string) {
+    setStatus(message);
+    window.setTimeout(() => setStatus(null), 1800);
   }
+
+  function handleExport() {
+    const payload = {
+      app: "stash",
+      schemaVersion: SCHEMA_VERSION,
+      exportedAt: new Date().toISOString(),
+      sessions,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `stash-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    flash(`Exported ${sessions.length} ${sessions.length === 1 ? "session" : "sessions"}`);
+  }
+
+  async function handleImportFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = ""; // allow re-importing the same file
+    if (!file) return;
+
+    try {
+      const parsed = JSON.parse(await file.text());
+      const rawSessions = Array.isArray(parsed) ? parsed : parsed?.sessions;
+      const valid = normalizeSessions(rawSessions);
+      if (valid.length === 0) {
+        flash("No valid sessions found in that file");
+        return;
+      }
+      const response = await sendBackgroundRequest({ type: "ADD_SESSIONS", sessions: valid });
+      if (!response.ok) {
+        flash(response.error);
+        return;
+      }
+      await refreshSessions();
+      const added = response.count ?? 0;
+      flash(added > 0 ? `Imported ${added} ${added === 1 ? "session" : "sessions"}` : "Already up to date");
+    } catch {
+      flash("That file could not be read as Stash JSON");
+    }
+  }
+
+  const tabCount = sessions.reduce((total, session) => total + session.tabs.length, 0);
 
   return (
     <main className="paper-bg min-h-screen px-6 py-12 text-ink">
       <Card className="mx-auto max-w-[760px] p-7">
         <header className="mb-7 flex items-center justify-between gap-4">
           <div>
-            <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-accent-text">Stash</p>
-            <h1 className="display-hero font-display text-[30px] font-semibold leading-tight">Settings</h1>
+            <p className="mb-1 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-accent-text">Stash</p>
+            <h1 className="font-display display-emphasis text-[30px] font-semibold leading-tight">Settings</h1>
           </div>
 
           {status ? (
             <motion.span
+              key={status}
               initial={reduceMotion ? false : { opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              className="rounded-full border border-success-border bg-success-soft px-2.5 py-1 text-xs font-bold text-success"
+              className="rounded-full border border-success-border bg-success-soft px-3 py-1 text-xs font-bold text-success"
             >
               {status}
             </motion.span>
@@ -64,17 +118,11 @@ export function OptionsApp() {
           title="Default save target"
           description="Choose what the popup and keyboard shortcut capture."
         >
-          <div className="grid grid-cols-2 gap-[3px] rounded-[var(--radius-card)] border border-border bg-surface-muted p-[3px]">
-            <SegmentButton
-              active={settings.saveTarget === "current-window"}
-              onClick={() => void setSaveTarget("current-window")}
-            >
+          <div className="grid grid-cols-2 gap-1 rounded-full border border-border/70 bg-surface-muted p-1 shadow-[inset_0_1px_3px_rgba(20,35,80,0.13)]">
+            <SegmentButton active={settings.saveTarget === "current-window"} onClick={() => void setSaveTarget("current-window")}>
               Current window
             </SegmentButton>
-            <SegmentButton
-              active={settings.saveTarget === "all-windows"}
-              onClick={() => void setSaveTarget("all-windows")}
-            >
+            <SegmentButton active={settings.saveTarget === "all-windows"} onClick={() => void setSaveTarget("all-windows")}>
               All windows
             </SegmentButton>
           </div>
@@ -85,7 +133,7 @@ export function OptionsApp() {
           title="Density"
           description="Use tighter rows in the popup."
         >
-          <label className="flex min-h-11 items-center justify-between gap-4 rounded-[var(--radius-card)] border border-border bg-surface-subtle px-3 text-sm font-semibold">
+          <label className="flex min-h-11 items-center justify-between gap-4 rounded-[var(--radius-card)] border border-border bg-surface-subtle px-4 text-sm font-semibold">
             <span>Compact mode</span>
             <input
               type="checkbox"
@@ -105,6 +153,28 @@ export function OptionsApp() {
             Open shortcuts
           </Button>
         </SettingGroup>
+
+        <SettingGroup
+          icon={<Download size={18} />}
+          title="Backup and restore"
+          description={`Export your ${sessions.length} ${sessions.length === 1 ? "session" : "sessions"} (${tabCount} ${tabCount === 1 ? "tab" : "tabs"}) to a file, or import a backup.`}
+        >
+          <div className="flex flex-wrap items-center gap-2 justify-self-start">
+            <Button variant="secondary" onClick={handleExport} disabled={sessions.length === 0} className="gap-1.5">
+              <Download size={14} /> Export
+            </Button>
+            <Button variant="secondary" onClick={() => fileInputRef.current?.click()} className="gap-1.5">
+              <Upload size={14} /> Import
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json"
+              className="hidden"
+              onChange={(event) => void handleImportFile(event)}
+            />
+          </div>
+        </SettingGroup>
       </Card>
     </main>
   );
@@ -114,7 +184,7 @@ function SettingGroup({
   icon,
   title,
   description,
-  children
+  children,
 }: {
   icon: ReactNode;
   title: string;
@@ -135,23 +205,17 @@ function SettingGroup({
   );
 }
 
-function SegmentButton({
-  active,
-  children,
-  onClick
-}: {
-  active: boolean;
-  children: ReactNode;
-  onClick: () => void;
-}) {
+function SegmentButton({ active, children, onClick }: { active: boolean; children: ReactNode; onClick: () => void }) {
   return (
     <button
       type="button"
-      className={cn(
-        "relative h-8 rounded-[var(--radius-btn)] px-3 text-sm font-bold text-muted transition-colors duration-[var(--dur-base)] ease-[var(--ease-standard)]",
-        active && "border border-border bg-surface text-ink shadow-[0_1px_0_rgba(31,27,22,0.04)]"
-      )}
       onClick={onClick}
+      className={cn(
+        "relative h-8 rounded-full px-3 text-sm font-semibold transition-[color,box-shadow,transform] duration-[var(--dur-fast)] ease-[var(--ease-std)] active:scale-[0.97]",
+        active
+          ? "bg-[image:linear-gradient(180deg,#FFFFFF_0%,var(--color-surface-subtle)_100%)] text-ink shadow-[0_1px_2px_rgba(20,35,80,0.13),inset_0_1px_0_rgba(255,255,255,0.9)]"
+          : "text-muted hover:text-ink",
+      )}
     >
       {children}
     </button>

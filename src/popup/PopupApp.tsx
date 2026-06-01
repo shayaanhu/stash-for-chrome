@@ -27,17 +27,7 @@ import { Toaster } from "../components/ui/toaster";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../components/ui/tooltip";
 import { cn } from "../lib/utils";
 import { sendBackgroundRequest } from "../shared/messages";
-import {
-  deleteSessionForever,
-  emptyTrash,
-  getSessions,
-  getSettings,
-  removeTabFromSession,
-  restoreDeletedSession,
-  saveSessions,
-  softDeleteSession,
-  updateSessionName,
-} from "../shared/storage";
+import { getSessions, getSettings } from "../shared/storage";
 import { matchesSession, sortSessionsNewestFirst } from "../shared/session-utils";
 import type { SaveTarget, StashSession, StashTab } from "../shared/types";
 
@@ -100,8 +90,8 @@ export function PopupApp() {
     const response = await sendBackgroundRequest({ type: "SAVE_TABS", target: saveTarget });
     setIsSaving(false);
 
-    if (!response.ok) {
-      toast.error(response.error);
+    if (!response.ok || !response.session) {
+      toast.error(response.ok ? "Nothing was saved." : response.error);
       return;
     }
 
@@ -125,80 +115,73 @@ export function PopupApp() {
   }
 
   async function undoSave(session: StashSession) {
-    await createWindow(session.tabs.map((t) => t.url));
-    await deleteSessionForever(session.id);
+    // Undoing a save reopens the tabs and removes the just-created session.
+    await sendBackgroundRequest({ type: "RESTORE_SESSION", sessionId: session.id });
+    await reload();
+  }
+
+  async function reAddSessions(toAdd: StashSession[]) {
+    await sendBackgroundRequest({ type: "ADD_SESSIONS", sessions: toAdd });
     await reload();
   }
 
   async function handleRestoreAll(session: StashSession) {
     if (!session.tabs.length) return;
     setRestoreBurstId(session.id);
-    await createWindow(session.tabs.map((t) => t.url));
-    // Restoring consumes the stash entry — it flies out of the library.
-    await deleteSessionForever(session.id);
+    // Restore runs in the service worker, so it completes even as the popup closes.
+    const response = await sendBackgroundRequest({ type: "RESTORE_SESSION", sessionId: session.id });
     await reload();
     setTimeout(() => setRestoreBurstId(null), reduceMotion ? 0 : 400);
-    toast.success(`Restored ${session.tabs.length} ${session.tabs.length === 1 ? "tab" : "tabs"}. Cleared from your stash.`, {
-      action: {
-        label: "Undo",
-        onClick: async () => {
-          const current = await getSessions();
-          await saveSessions([...current, session]);
-          await reload();
-        },
-      },
-    });
+    if (!response.ok) {
+      toast.error(response.error);
+      return;
+    }
+    toast.success(
+      `Restored ${session.tabs.length} ${session.tabs.length === 1 ? "tab" : "tabs"}. Cleared from your stash.`,
+      { action: { label: "Undo", onClick: () => void reAddSessions([session]) } },
+    );
   }
 
   async function handleRestoreTab(tab: StashTab) {
-    await createTab(tab.url);
+    const response = await sendBackgroundRequest({ type: "RESTORE_TAB", url: tab.url });
+    if (!response.ok) {
+      toast.error(response.error);
+      return;
+    }
     toast.success("Tab restored.");
   }
 
   async function handleDeleteSession(session: StashSession) {
-    await softDeleteSession(session.id);
+    await sendBackgroundRequest({ type: "SOFT_DELETE_SESSION", sessionId: session.id });
     await reload();
     toast("Moved to trash.", {
       action: {
         label: "Undo",
-        onClick: () => void restoreDeletedSession(session.id).then(reload),
+        onClick: () =>
+          void sendBackgroundRequest({ type: "RESTORE_DELETED_SESSION", sessionId: session.id }).then(reload),
       },
     });
   }
 
   async function handleDeleteForever(session: StashSession) {
-    await deleteSessionForever(session.id);
+    await sendBackgroundRequest({ type: "DELETE_FOREVER", sessionId: session.id });
     await reload();
     toast("Deleted forever.", {
-      action: {
-        label: "Undo",
-        onClick: async () => {
-          const current = await getSessions();
-          await saveSessions([...current, session]);
-          await reload();
-        },
-      },
+      action: { label: "Undo", onClick: () => void reAddSessions([session]) },
     });
   }
 
   async function handleEmptyTrash() {
     const trashSessions = sessions.filter((s) => s.deletedAt);
-    await emptyTrash();
+    await sendBackgroundRequest({ type: "EMPTY_TRASH" });
     await reload();
     toast("Trash emptied.", {
-      action: {
-        label: "Undo",
-        onClick: async () => {
-          const current = await getSessions();
-          await saveSessions([...current, ...trashSessions]);
-          await reload();
-        },
-      },
+      action: { label: "Undo", onClick: () => void reAddSessions(trashSessions) },
     });
   }
 
   async function handleRemoveTab(sessionId: string, tabId: string) {
-    await removeTabFromSession(sessionId, tabId);
+    await sendBackgroundRequest({ type: "REMOVE_TAB", sessionId, tabId });
     await reload();
   }
 
@@ -218,7 +201,7 @@ export function PopupApp() {
   async function submitRename(e?: FormEvent<HTMLFormElement>) {
     e?.preventDefault();
     if (!editingId) return;
-    await updateSessionName(editingId, draftName);
+    await sendBackgroundRequest({ type: "RENAME_SESSION", sessionId: editingId, name: draftName });
     setEditingId(null);
     setDraftName("");
     await reload();
@@ -387,7 +370,10 @@ export function PopupApp() {
                       onRestoreTab={handleRestoreTab}
                       onDeleteSession={handleDeleteSession}
                       onDeleteForever={handleDeleteForever}
-                      onRestoreDeleted={async (id) => { await restoreDeletedSession(id); await reload(); }}
+                      onRestoreDeleted={async (id) => {
+                        await sendBackgroundRequest({ type: "RESTORE_DELETED_SESSION", sessionId: id });
+                        await reload();
+                      }}
                       onRemoveTab={handleRemoveTab}
                     />
                   ) : (
@@ -810,22 +796,6 @@ function SaveBurstAnim({ burst, reduceMotion }: { burst: SaveBurst; reduceMotion
 }
 
 /* ── Utils ─────────────────────────────────────────────────────── */
-function createTab(url: string): Promise<void> {
-  return new Promise((res, rej) =>
-    chrome.tabs.create({ url, active: true }, () =>
-      chrome.runtime.lastError ? rej(new Error(chrome.runtime.lastError.message)) : res()
-    )
-  );
-}
-
-function createWindow(urls: string[]): Promise<void> {
-  return new Promise((res, rej) =>
-    chrome.windows.create({ url: urls, focused: true }, () =>
-      chrome.runtime.lastError ? rej(new Error(chrome.runtime.lastError.message)) : res()
-    )
-  );
-}
-
 function formatDate(ts: number) {
   return new Intl.DateTimeFormat(undefined, {
     month: "short", day: "numeric", hour: "numeric", minute: "2-digit",

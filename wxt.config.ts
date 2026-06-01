@@ -9,10 +9,15 @@ export default defineConfig({
     plugins: [tailwindcss()]
   }),
   manifest: {
-    name: "Stash",
-    description: "A beautifully designed tab manager for saving and restoring browser sessions.",
-    version: "0.1.0",
-    permissions: ["contextMenus", "storage", "tabs"],
+    name: "Stash - Tab Manager, Save & Restore Tabs",
+    description:
+      "Save and restore browser tabs in one click. A beautiful tab manager and OneTab alternative that declutters your window.",
+    version: "1.0.0",
+    minimum_chrome_version: "116",
+    permissions: ["contextMenus", "storage", "unlimitedStorage", "tabs", "alarms"],
+    action: {
+      default_title: "Stash — save your tabs"
+    },
     commands: {
       "save-all-tabs": {
         suggested_key: {

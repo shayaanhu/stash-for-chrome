@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <defs>
+    <!-- Scaled squircle tile mask for 16px (rx="4") -->
+    <clipPath id="tile-clip-16">
+      <rect width="16" height="16" rx="4" ry="4" x="0" y="0" />
+    </clipPath>
+  </defs>
+
+  <!-- 16px Toolbar Fallback: Clean spine and buttermilk canvas (no letter to avoid muddy pixels) -->
+  <g clip-path="url(#tile-clip-16)">
+    <!-- Buttermilk Cream Canvas (#FFF2BD) -->
+    <rect width="16" height="16" fill="#FFF2BD" />
+    
+    <!-- Accent Blue Spine (#285CCC) on the left (thickened to 3.5px for high visibility at 16px) -->
+    <rect x="0" y="0" width="3.5" height="16" fill="#285CCC" />
+  </g>
+</svg>

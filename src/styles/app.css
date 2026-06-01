@@ -5,34 +5,34 @@
 @import "tw-animate-css";
 
 @theme {
-  /* Sage / forest — the stash palette */
-  --color-bg:           #ECF2EC;
-  --color-surface:      #FFFFFF;
-  --color-ink:          #192A1B;
-  --color-muted:        #587060;
-  --color-muted-2:      #8AA48E;
-  --color-border:       #D8E6D9;
-  --color-border-strong:#C4D6C6;
-  --color-surface-subtle:#F4FAF4;
-  --color-surface-muted: #E4EDE4;
-  --color-control-hover: #DDE9DD;
-  --color-chip:          #E8F0E8;
+  /* Buttermilk & mid blue — soft cream canvas, blue ink + accent */
+  --color-bg:           #F4F0E4;
+  --color-surface:      #FFFEFA;
+  --color-ink:          #1C336B;
+  --color-muted:        #4A5E92;
+  --color-muted-2:      #8A93B0;
+  --color-border:       #E5DDC4;
+  --color-border-strong:#D5CAA8;
+  --color-surface-subtle:#FCFAF1;
+  --color-surface-muted: #EBE5D2;
+  --color-control-hover: #E6DFCB;
+  --color-chip:          #F0ECDE;
 
-  /* Accent — forest green. Fills: bg-accent. Text: text-accent-text */
-  --color-accent:      #3A7A52;
-  --color-accent-hi:   #4A9264;
-  --color-accent-lo:   #2A6040;
-  --color-accent-text: #2A6040;
-  --color-accent-soft: #E0EDE3;
+  /* Accent — mid blue. Fills: bg-accent (buttermilk text). Text: text-accent-text */
+  --color-accent:      #285CCC;
+  --color-accent-hi:   #3D70E0;
+  --color-accent-lo:   #1E48A6;
+  --color-accent-text: #2353BD;
+  --color-accent-soft: #DCE6FA;
 
-  --color-success:        #3A7A52;
-  --color-success-soft:   #E0EDE3;
-  --color-success-border: #C0D9C6;
-  --color-danger:         #B84040;
-  --color-danger-soft:    #FCEAEA;
-  --color-danger-border:  #E8C4C4;
-  --color-danger-border-strong: #D8A8A8;
-  --color-danger-ink:     #983030;
+  --color-success:        #285CCC;
+  --color-success-soft:   #DCE6FA;
+  --color-success-border: #BBCDF4;
+  --color-danger:         #C2453A;
+  --color-danger-soft:    #FBE7E2;
+  --color-danger-border:  #ECC6BE;
+  --color-danger-border-strong: #DCA89E;
+  --color-danger-ink:     #9C3228;
 
   --font-display:  "Fraunces Variable", Georgia, serif;
   --font-body:     "Plus Jakarta Sans Variable", system-ui, sans-serif;
@@ -43,11 +43,18 @@
   --radius-field: 999px;
   --radius-chip:  999px;
 
-  /* Physical, tight shadows — depth without glow */
-  --shadow-xs:   0 1px 2px rgba(25, 42, 27, 0.05);
-  --shadow-sm:   0 1px 2px rgba(25, 42, 27, 0.05), 0 1px 4px -1px rgba(25, 42, 27, 0.04);
-  --shadow-md:   0 2px 4px rgba(25, 42, 27, 0.06), 0 4px 16px -4px rgba(25, 42, 27, 0.10);
-  --shadow-pop:  0 8px 32px -8px rgba(25, 42, 27, 0.22);
+  /* Physical, tight shadows — depth without glow (deep-blue tint) */
+  --shadow-xs:   0 1px 2px rgba(20, 35, 80, 0.07);
+  --shadow-sm:   0 1px 2px rgba(20, 35, 80, 0.07), 0 1px 4px -1px rgba(20, 35, 80, 0.06);
+  --shadow-md:   0 2px 4px rgba(20, 35, 80, 0.09), 0 4px 16px -4px rgba(20, 35, 80, 0.14);
+  --shadow-pop:  0 8px 32px -8px rgba(20, 35, 80, 0.28);
+
+  /* Tactile button depth — gradient + inset highlight + drop */
+  --shadow-raised:        0 1px 1px rgba(20, 35, 80, 0.07), 0 2px 5px -1px rgba(20, 35, 80, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --shadow-raised-hover:  0 2px 4px rgba(20, 35, 80, 0.09), 0 9px 20px -6px rgba(20, 35, 80, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  --shadow-primary:       0 1px 1px rgba(12, 24, 60, 0.50), 0 6px 14px -4px rgba(40, 92, 204, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  --shadow-primary-hover: 0 2px 3px rgba(12, 24, 60, 0.50), 0 13px 26px -6px rgba(40, 92, 204, 0.58), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  --shadow-press:         inset 0 2px 5px rgba(12, 24, 60, 0.40);
 
   --ease-std:     cubic-bezier(0.2, 0, 0, 1);
   --ease-spring:  cubic-bezier(0.22, 1, 0.36, 1);
@@ -64,7 +71,7 @@
   --popover:             var(--color-surface);
   --popover-foreground:  var(--color-ink);
   --primary:             var(--color-accent);
-  --primary-foreground:  #ffffff;
+  --primary-foreground:  #FFF2BD;
   --secondary:           var(--color-surface-muted);
   --secondary-foreground:var(--color-ink);
   --muted:               var(--color-surface-muted);
@@ -95,9 +102,9 @@ body {
 .paper-bg {
   background-color: var(--color-bg);
   background-image:
-    radial-gradient(115% 85% at 100% -10%, #e2f1e6 0%, transparent 52%),
-    radial-gradient(110% 80% at -8% 108%, #cbe3d1 0%, transparent 46%),
-    radial-gradient(90% 70% at 50% 45%, #f4faf4 0%, transparent 70%);
+    radial-gradient(120% 90% at 100% -10%, #FBF8EE 0%, transparent 55%),
+    radial-gradient(110% 80% at -8% 110%, #EEEADC 0%, transparent 48%),
+    radial-gradient(90% 70% at 50% 45%, #FCFBF5 0%, transparent 72%);
 }
 /* Fine grain so the canvas reads as paper, not flat fill */
 .paper-bg::after {
@@ -106,9 +113,8 @@ body {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.5;
-  mix-blend-mode: multiply;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity: 0.6;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
 }
 .paper-bg > * { position: relative; z-index: 1; }
 

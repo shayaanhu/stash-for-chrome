@@ -19,6 +19,7 @@ import type { FormEvent, KeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { EmptyPreview } from "../components/empty/EmptyPreview";
+import { TrashEmpty } from "../components/empty/TrashEmpty";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
@@ -55,7 +56,7 @@ export function PopupApp() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
   const [freshlySavedId, setFreshlySavedId] = useState<string | null>(null);
   const [saveBurst, setSaveBurst] = useState<SaveBurst | null>(null);
   const [restoreBurstId, setRestoreBurstId] = useState<string | null>(null);
@@ -96,12 +97,10 @@ export function PopupApp() {
 
   async function handleSaveTabs() {
     setIsSaving(true);
-    setStatus(null);
     const response = await sendBackgroundRequest({ type: "SAVE_TABS", target: saveTarget });
     setIsSaving(false);
 
     if (!response.ok) {
-      setStatus(response.error);
       toast.error(response.error);
       return;
     }
@@ -109,10 +108,12 @@ export function PopupApp() {
     const saved = response.session;
     setSaveBurst({ id: saved.id, tabs: saved.tabs.slice(0, 4) });
     setFreshlySavedId(saved.id);
+    setJustSaved(true);
     setExpandedIds((cur) => new Set(cur).add(saved.id));
     setViewMode("library");
     await reload();
 
+    setTimeout(() => setJustSaved(false),     reduceMotion ? 0 : 1400);
     setTimeout(() => setSaveBurst(null),      reduceMotion ? 0 : 650);
     setTimeout(() => setFreshlySavedId(null), reduceMotion ? 0 : 1800);
     setTimeout(
@@ -133,8 +134,20 @@ export function PopupApp() {
     if (!session.tabs.length) return;
     setRestoreBurstId(session.id);
     await createWindow(session.tabs.map((t) => t.url));
-    toast.success("Restored to a new window.");
+    // Restoring consumes the stash entry — it flies out of the library.
+    await deleteSessionForever(session.id);
+    await reload();
     setTimeout(() => setRestoreBurstId(null), reduceMotion ? 0 : 400);
+    toast.success(`Restored ${session.tabs.length} ${session.tabs.length === 1 ? "tab" : "tabs"}. Cleared from your stash.`, {
+      action: {
+        label: "Undo",
+        onClick: async () => {
+          const current = await getSessions();
+          await saveSessions([...current, session]);
+          await reload();
+        },
+      },
+    });
   }
 
   async function handleRestoreTab(tab: StashTab) {
@@ -236,9 +249,10 @@ export function PopupApp() {
                   type="button"
                   aria-label="Settings"
                   onClick={() => chrome.runtime.openOptionsPage()}
-                  className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-btn)] text-muted transition-colors duration-[var(--dur-fast)] hover:bg-surface-muted hover:text-ink"
-                  whileTap={{ scale: 0.90 }}
-                  transition={{ duration: 0.1 }}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-[image:linear-gradient(180deg,#FFFFFF_0%,var(--color-surface-subtle)_100%)] text-muted shadow-[var(--shadow-raised)] transition-[box-shadow,color] duration-[var(--dur-fast)] hover:text-ink hover:shadow-[var(--shadow-raised-hover)]"
+                  whileHover={{ y: -2, rotate: 35 }}
+                  whileTap={{ scale: 0.9, y: 0 }}
+                  transition={{ type: "spring", stiffness: 420, damping: 22 }}
                 >
                   <Settings size={15} />
                 </motion.button>
@@ -246,12 +260,32 @@ export function PopupApp() {
               <TooltipContent>Settings</TooltipContent>
             </Tooltip>
 
-            <motion.div whileTap={{ scale: 0.96 }} transition={{ duration: 0.1 }}>
+            <motion.div
+              whileHover={{ scale: 1.035 }}
+              whileTap={{ scale: 0.95 }}
+              animate={justSaved && !reduceMotion ? { scale: [1, 1.06, 1] } : undefined}
+              transition={{ type: "spring", stiffness: 480, damping: 26 }}
+            >
               <Button variant="primary" size="md" onClick={handleSaveTabs} disabled={isSaving} className="gap-1.5">
-                {isSaving
-                  ? <Loader2 size={14} className="animate-spin" />
-                  : <PanelTopClose size={14} />}
-                {isSaving ? "Saving…" : "Save tabs"}
+                <span className="grid place-items-center" style={{ width: 14, height: 14 }}>
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.span
+                      key={isSaving ? "load" : justSaved ? "done" : "idle"}
+                      initial={reduceMotion ? false : { opacity: 0, scale: 0.5, rotate: -30 }}
+                      animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.5, rotate: 30 }}
+                      transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                      className="flex"
+                    >
+                      {isSaving
+                        ? <Loader2 size={14} className="animate-spin" />
+                        : justSaved
+                        ? <Check size={14} strokeWidth={3} />
+                        : <PanelTopClose size={14} />}
+                    </motion.span>
+                  </AnimatePresence>
+                </span>
+                {isSaving ? "Saving…" : justSaved ? "Saved!" : "Save tabs"}
               </Button>
             </motion.div>
           </div>
@@ -305,16 +339,6 @@ export function PopupApp() {
 
           {/* ── Content ──────────────────────────────────────── */}
           <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-5 pt-1">
-            {status && (
-              <motion.p
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mb-3 rounded-[var(--radius-btn)] border border-danger-border bg-danger-soft px-3 py-2 text-sm text-danger-ink"
-              >
-                {status}
-              </motion.p>
-            )}
-
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={`${viewMode}-${query.trim() ? "q" : "all"}`}
@@ -332,9 +356,10 @@ export function PopupApp() {
                       <motion.button
                         type="button"
                         onClick={handleEmptyTrash}
-                        whileTap={{ scale: 0.96 }}
-                        transition={{ duration: 0.1 }}
-                        className="flex items-center gap-1.5 rounded-[var(--radius-btn)] bg-danger px-3.5 py-1.5 font-body text-[13px] font-semibold text-white shadow-[var(--shadow-xs)] transition-[background-color,opacity] duration-[var(--dur-fast)] hover:opacity-90"
+                        whileHover={{ y: -1 }}
+                        whileTap={{ scale: 0.95, y: 0 }}
+                        transition={{ type: "spring", stiffness: 480, damping: 26 }}
+                        className="flex items-center gap-1.5 rounded-full bg-[image:linear-gradient(180deg,#C84A4A_0%,#B84040_55%,#9E3434_100%)] px-3.5 py-1.5 font-body text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(80,20,20,0.40),0_5px_12px_-4px_rgba(184,64,64,0.50),inset_0_1px_0_rgba(255,255,255,0.25)] transition-[box-shadow,filter] duration-[var(--dur-fast)] hover:brightness-[1.05] hover:shadow-[0_2px_3px_rgba(80,20,20,0.40),0_10px_20px_-6px_rgba(184,64,64,0.55),inset_0_1px_0_rgba(255,255,255,0.30)]"
                       >
                         <Trash2 size={13} />
                         Empty trash
@@ -435,7 +460,9 @@ function SessionList({
                 layout
                 initial={reduceMotion ? false : { opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6, scale: 0.98 }}
+                exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.82, x: 24, transition: { duration: 0.2, ease: [0.4, 0, 1, 1] } }}
+                whileHover={reduceMotion ? undefined : { y: -3, transition: { type: "spring", stiffness: 420, damping: 26 } }}
+                whileTap={reduceMotion ? undefined : { scale: 0.992 }}
                 transition={{
                   layout: { duration: 0.16, ease: [0.2, 0, 0, 1] },
                   duration: 0.22,
@@ -443,36 +470,34 @@ function SessionList({
                   ease: [0.22, 1, 0.36, 1],
                 }}
                 className={cn(
-                  "group relative overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-sm)] transition-shadow duration-[var(--dur-base)] hover:shadow-[var(--shadow-md)]",
+                  // Accent spine is an inset box-shadow so it follows the rounded edge the full height (no corner clipping)
+                  "group relative overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[inset_3px_0_0_0_var(--color-accent),var(--shadow-sm)] transition-shadow duration-[var(--dur-base)] hover:border-border-strong hover:shadow-[inset_3px_0_0_0_var(--color-accent),var(--shadow-md)]",
                   isFresh && "ring-2 ring-accent/30",
                 )}
               >
-                {/* Left accent strip — full height, clipped by card overflow-hidden */}
-                <div className={cn(
-                  "absolute inset-y-0 left-0 w-[3px] transition-opacity duration-[var(--dur-base)]",
-                  isFresh ? "bg-accent opacity-100" : "bg-accent opacity-0 group-hover:opacity-50",
-                )} />
-
                 {/* Card header */}
                 <div className={cn(
                   "flex items-start gap-3 pl-4 pr-3",
                   compactMode ? "py-3" : "py-5",
                 )}>
                   {/* Expand button — just the chevron, small, top-left */}
-                  <button
+                  <motion.button
                     type="button"
                     aria-label={isExpanded ? "Collapse" : "Expand"}
                     onClick={() => onToggleExpanded(session.id)}
-                    className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-2 transition-colors hover:text-muted"
+                    whileHover={{ scale: 1.25 }}
+                    whileTap={{ scale: 0.8 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 20 }}
+                    className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-2 transition-colors hover:text-ink"
                   >
                     <motion.span
                       animate={{ rotate: isExpanded ? 90 : 0 }}
-                      transition={{ duration: 0.16, ease: [0.2, 0, 0, 1] }}
+                      transition={{ type: "spring", stiffness: 400, damping: 24 }}
                       className="inline-flex"
                     >
                       <ChevronRight size={13} />
                     </motion.span>
-                  </button>
+                  </motion.button>
 
                   {/* Title + meta */}
                   <div className="min-w-0 flex-1">
@@ -502,7 +527,8 @@ function SessionList({
                             {session.name}
                           </span>
                         </span>
-                        <span className="mt-2 flex items-center gap-1.5 flex-wrap">
+                        <span className="mt-2 flex items-center gap-2">
+                          <FaviconSpine tabs={session.tabs} isRestoring={isRestoring} reduceMotion={reduceMotion} />
                           <span className="inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 font-mono text-[11px] text-muted-2">
                             <NumberFlow value={session.tabs.length} />&nbsp;{session.tabs.length === 1 ? "tab" : "tabs"}
                           </span>
@@ -514,31 +540,16 @@ function SessionList({
                     )}
                   </div>
 
-                  {/* Right zone — fixed width so actions never bleed over text */}
-                  <div className={cn(
-                    "relative shrink-0",
-                    viewMode === "trash" ? "w-[60px]" : "w-[88px]",
-                  )}>
-                    {/* Favicons — hidden on hover */}
-                    <div className="flex items-center justify-end transition-opacity duration-[var(--dur-base)] group-hover:opacity-0 group-hover:pointer-events-none">
-                      <FaviconSpine tabs={session.tabs} isRestoring={isRestoring} reduceMotion={reduceMotion} />
-                    </div>
-                    {/* Actions — shown on hover, exact same footprint */}
-                    <div className="pointer-events-none absolute inset-0 flex items-center justify-end gap-0.5 opacity-0 transition-opacity duration-[var(--dur-base)] group-hover:pointer-events-auto group-hover:opacity-100">
+                  {/* Right zone — secondary actions fade in on hover (reserved space, no shift),
+                      primary Restore is always visible and large for an easy tap. */}
+                  <div className="flex shrink-0 items-center gap-1">
+                    <div className="pointer-events-none flex items-center gap-0.5 opacity-0 transition-opacity duration-[var(--dur-base)] group-hover:pointer-events-auto group-hover:opacity-100">
                       {viewMode === "trash" ? (
-                        <>
-                          <ActionBtn label="Restore session" onClick={() => void onRestoreDeleted(session.id)}>
-                            <Undo2 size={14} />
-                          </ActionBtn>
-                          <ActionBtn label="Delete forever" danger onClick={() => void onDeleteForever(session)}>
-                            <X size={14} />
-                          </ActionBtn>
-                        </>
+                        <ActionBtn label="Delete forever" danger onClick={() => void onDeleteForever(session)}>
+                          <X size={14} />
+                        </ActionBtn>
                       ) : (
                         <>
-                          <ActionBtn label="Restore all tabs" onClick={() => void onRestoreAll(session)}>
-                            <RotateCcw size={14} />
-                          </ActionBtn>
                           <ActionBtn label="Rename" onClick={() => onRenameStart(session)}>
                             <Pencil size={14} />
                           </ActionBtn>
@@ -548,6 +559,19 @@ function SessionList({
                         </>
                       )}
                     </div>
+                    {viewMode === "trash" ? (
+                      <RestoreButton
+                        label="Restore from trash"
+                        icon={<Undo2 size={16} />}
+                        onClick={() => void onRestoreDeleted(session.id)}
+                      />
+                    ) : (
+                      <RestoreButton
+                        label="Restore tabs"
+                        icon={<RotateCcw size={16} />}
+                        onClick={() => void onRestoreAll(session)}
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -571,11 +595,11 @@ function SessionList({
                             animate={{ opacity: 1, height: "auto" }}
                             exit={reduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
                             transition={{ duration: 0.14, ease: [0.2, 0, 0, 1] }}
-                            className="flex min-h-[38px] items-center gap-1 rounded-[var(--radius-btn)] transition-colors hover:bg-surface-subtle"
+                            className="group/row flex min-h-[38px] items-center gap-1 rounded-[10px] transition-colors hover:bg-surface-subtle"
                           >
                             <button
                               type="button"
-                              className="flex flex-1 min-w-0 items-center gap-2.5 px-2.5 py-1.5 text-left"
+                              className="flex flex-1 min-w-0 items-center gap-2.5 px-2.5 py-1.5 text-left transition-transform duration-[var(--dur-fast)] ease-[var(--ease-std)] group-hover/row:translate-x-0.5 active:scale-[0.99]"
                               onClick={() => void onRestoreTab(tab)}
                             >
                               <Favicon tab={tab} />
@@ -583,7 +607,7 @@ function SessionList({
                                 <span className="block truncate text-[14px] font-medium text-ink">{tab.title}</span>
                                 <span className="block truncate font-mono text-[11.5px] text-muted-2">{formatUrl(tab.url)}</span>
                               </span>
-                              <ExternalLink size={12} className="shrink-0 text-muted-2" />
+                              <ExternalLink size={12} className="shrink-0 -translate-x-1 text-muted-2 opacity-0 transition-all duration-[var(--dur-fast)] group-hover/row:translate-x-0 group-hover/row:opacity-100" />
                             </button>
                             {viewMode === "library" && (
                               <ActionBtn label="Remove tab" danger onClick={() => void onRemoveTab(session.id, tab.id)} className="mr-1">
@@ -612,7 +636,7 @@ function EmptyState({
   viewMode: ViewMode; query: string; reduceMotion: boolean;
 }) {
   const isSearch = query.trim().length > 0;
-  const isLibraryEmpty = !isSearch && viewMode === "library";
+  const showPreview = !isSearch;
   const title = isSearch
     ? "No matches"
     : viewMode === "trash"
@@ -621,8 +645,8 @@ function EmptyState({
   const copy = isSearch
     ? "Try a session name, tab title, or URL."
     : viewMode === "trash"
-    ? "Deleted sessions wait here for 30 days."
-    : "Save your open tabs into one tidy session — restore the whole set in a click.";
+    ? "Sessions you delete rest here for 30 days before they're gone for good."
+    : "Tuck every open tab into one tidy session. Bring the whole set back in a single click.";
 
   return (
     <motion.section
@@ -631,9 +655,11 @@ function EmptyState({
       transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
       className="flex min-h-[360px] flex-col items-center justify-center px-8 text-center"
     >
-      {isLibraryEmpty && (
+      {showPreview && (
         <div className="mb-7">
-          <EmptyPreview reduceMotion={reduceMotion} />
+          {viewMode === "trash"
+            ? <TrashEmpty reduceMotion={reduceMotion} />
+            : <EmptyPreview reduceMotion={reduceMotion} />}
         </div>
       )}
       <p className="display-emphasis font-display text-[25px] leading-tight text-ink">{title}</p>
@@ -656,15 +682,42 @@ function ActionBtn({
           type="button"
           aria-label={label}
           onClick={onClick}
-          whileTap={{ scale: 0.88 }}
-          transition={{ duration: 0.1 }}
+          whileHover={{ scale: 1.18 }}
+          whileTap={{ scale: 0.82 }}
+          transition={{ type: "spring", stiffness: 500, damping: 22 }}
           className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-[var(--radius-btn)] text-muted-2 transition-colors duration-[var(--dur-fast)]",
+            "flex h-7 w-7 items-center justify-center rounded-full text-muted-2 transition-colors duration-[var(--dur-fast)]",
             danger ? "hover:bg-danger-soft hover:text-danger" : "hover:bg-surface-muted hover:text-ink",
             className,
           )}
         >
           {children}
+        </motion.button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/* Primary action on every card: large, always-visible, fills with accent on hover. */
+function RestoreButton({
+  label, icon, onClick,
+}: {
+  label: string; icon: React.ReactNode; onClick: () => void;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <motion.button
+          type="button"
+          aria-label={label}
+          onClick={onClick}
+          whileHover={{ scale: 1.12 }}
+          whileTap={{ scale: 0.84 }}
+          transition={{ type: "spring", stiffness: 480, damping: 20 }}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-[image:linear-gradient(180deg,#FFFFFF_0%,var(--color-surface-subtle)_100%)] text-accent-text shadow-[var(--shadow-raised)] transition-colors duration-[var(--dur-fast)] hover:border-accent hover:bg-accent hover:bg-none hover:text-[#FFF2BD]"
+        >
+          {icon}
         </motion.button>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>

@@ -4,18 +4,18 @@ import type { ButtonHTMLAttributes } from "react";
 import { cn } from "../../lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-btn)] font-body text-[13px] font-semibold tracking-[-0.01em] transition-[background-color,color,opacity,box-shadow] duration-[var(--dur-fast)] ease-[var(--ease-std)] focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40",
+  "inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-btn)] font-body text-[13px] font-semibold tracking-[-0.01em] transition-[transform,box-shadow,filter,background-color,color,border-color] duration-[var(--dur-fast)] ease-[var(--ease-std)] focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40",
   {
     variants: {
       variant: {
         primary:
-          "bg-accent text-white shadow-[var(--shadow-xs)] hover:bg-accent-hi active:bg-accent-lo active:shadow-none",
+          "bg-[image:linear-gradient(180deg,var(--color-accent-hi)_0%,var(--color-accent)_52%,var(--color-accent-lo)_100%)] text-[#FFF2BD] shadow-[var(--shadow-primary)] hover:-translate-y-px hover:brightness-[1.06] hover:shadow-[var(--shadow-primary-hover)] active:translate-y-0 active:brightness-95 active:shadow-[var(--shadow-press)]",
         secondary:
-          "border border-border bg-surface text-ink shadow-[var(--shadow-xs)] hover:border-border-strong hover:bg-surface-subtle",
+          "border border-border bg-[image:linear-gradient(180deg,#FFFFFF_0%,var(--color-surface-subtle)_100%)] text-ink shadow-[var(--shadow-raised)] hover:-translate-y-px hover:border-border-strong hover:shadow-[var(--shadow-raised-hover)] active:translate-y-0 active:shadow-[var(--shadow-press)]",
         ghost:
-          "bg-transparent text-muted hover:bg-surface-muted hover:text-ink",
+          "bg-transparent text-muted hover:bg-surface-muted hover:text-ink active:scale-[0.97]",
         danger:
-          "bg-transparent text-muted hover:bg-danger-soft hover:text-danger",
+          "bg-transparent text-muted hover:bg-danger-soft hover:text-danger active:scale-[0.97]",
       },
       size: {
         sm:     "h-8 px-3.5 text-[12.5px]",

@@ -13,7 +13,7 @@ const TabsList = forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex items-center gap-1 rounded-full border border-border/70 bg-surface-muted p-1 shadow-[inset_0_1px_2px_rgba(25,42,27,0.07)]",
+      "inline-flex items-center gap-1 rounded-full border border-border/70 bg-surface-muted p-1 shadow-[inset_0_1px_3px_rgba(20,35,80,0.14),inset_0_-1px_0_rgba(255,255,255,0.4)]",
       className
     )}
     {...props}
@@ -30,7 +30,7 @@ const TabsTrigger = forwardRef<ElementRef<typeof TabsPrimitive.Trigger>, TabsTri
     <TabsPrimitive.Trigger
       ref={ref}
       className={cn(
-        "relative flex items-center gap-2 rounded-full px-3.5 py-1.5 font-body text-[13px] font-semibold outline-none transition-colors duration-[var(--dur-fast)] ease-[var(--ease-std)]",
+        "relative flex items-center gap-2 rounded-full px-3.5 py-1.5 font-body text-[13px] font-semibold outline-none transition-[color,transform] duration-[var(--dur-fast)] ease-[var(--ease-std)] active:scale-[0.94]",
         active ? "text-ink" : "text-muted hover:text-ink",
         className
       )}
@@ -39,7 +39,7 @@ const TabsTrigger = forwardRef<ElementRef<typeof TabsPrimitive.Trigger>, TabsTri
       {active && (
         <motion.span
           layoutId="stash-tab-indicator"
-          className="absolute inset-0 rounded-full bg-surface shadow-[0_1px_2px_rgba(25,42,27,0.10),0_2px_6px_-2px_rgba(25,42,27,0.12)]"
+          className="absolute inset-0 rounded-full bg-[image:linear-gradient(180deg,#FFFFFF_0%,var(--color-surface-subtle)_100%)] shadow-[0_1px_2px_rgba(20,35,80,0.13),0_3px_8px_-2px_rgba(20,35,80,0.17),inset_0_1px_0_rgba(255,255,255,0.9)]"
           transition={{ type: "spring", stiffness: 520, damping: 40 }}
         />
       )}

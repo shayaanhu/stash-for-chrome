@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<style>
+@font-face {
+  font-family: 'Fraunces Variable';
+  src: url('../../node_modules/@fontsource-variable/fraunces/files/fraunces-latin-wght-normal.woff2') format('woff2');
+  font-weight: 100 900; font-style: normal;
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans Variable';
+  src: url('../../node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2') format('woff2');
+  font-weight: 200 800; font-style: normal;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  width: 1400px; height: 560px; overflow: hidden;
+  background: #1C336B;
+  font-family: 'Plus Jakarta Sans Variable', system-ui, sans-serif;
+  position: relative;
+}
+.bg-dots {
+  position: absolute; inset: 0;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 30px 30px;
+}
+.bg-glow {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 50% 80% at 5% 50%, rgba(40,92,204,0.38) 0%, transparent 55%),
+    radial-gradient(ellipse 40% 60% at 95% 50%, rgba(10,20,48,0.9) 0%, transparent 50%);
+}
+/* LEFT brand zone */
+.left {
+  position: absolute; left: 90px; top: 0; bottom: 0; width: 520px;
+  display: flex; flex-direction: column; justify-content: center; z-index: 10;
+}
+.brand-row {
+  display: flex; align-items: center; gap: 18px; margin-bottom: 36px;
+}
+.icon {
+  width: 64px; height: 64px; border-radius: 16px;
+  background: #F6EBCF; flex-shrink: 0;
+  position: relative; overflow: hidden;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.38), 0 2px 6px rgba(0,0,0,0.22);
+}
+.icon::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+  width: 6px; background: #2A55B1;
+}
+.icon-s {
+  font-family: 'Fraunces Variable', Georgia, serif;
+  font-size: 35px; font-weight: 700; color: #1D3261;
+  font-variation-settings: 'opsz' 44, 'wght' 700;
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding-left: 5px;
+}
+.wordmark {
+  font-family: 'Fraunces Variable', Georgia, serif;
+  font-size: 42px; font-weight: 600; color: #FFFEFA; line-height: 1;
+  font-variation-settings: 'opsz' 44, 'wght' 600;
+  letter-spacing: -0.3px;
+}
+h1 {
+  font-family: 'Fraunces Variable', Georgia, serif;
+  font-size: 54px; font-weight: 700; line-height: 1.08;
+  color: #FFFEFA; letter-spacing: -0.5px;
+  font-variation-settings: 'opsz' 44, 'wght' 700;
+  margin-bottom: 20px;
+}
+.sub {
+  font-size: 18px; font-weight: 400; line-height: 1.6;
+  color: rgba(255,250,234,0.6); max-width: 400px;
+}
+/* RIGHT popup zone */
+.right {
+  position: absolute; right: 56px; top: 50%;
+  transform: translateY(-50%) rotate(2.5deg);
+  z-index: 10;
+}
+/* POPUP */
+.popup {
+  width: 400px; background: #FFFEFA; border-radius: 18px; overflow: hidden;
+  box-shadow:
+    0 60px 120px rgba(0,0,0,0.55),
+    0 20px 40px rgba(0,0,0,0.3),
+    0 4px 10px rgba(0,0,0,0.18),
+    0 0 0 1px rgba(255,255,255,0.1);
+}
+.popup-canvas {
+  background:
+    radial-gradient(ellipse 80% 55% at 25% 12%, rgba(249,245,236,0.95) 0%, transparent 62%),
+    radial-gradient(ellipse 60% 75% at 82% 88%, rgba(235,229,212,0.65) 0%, transparent 55%),
+    #F4F0E4;
+}
+.toolbar {
+  display: flex; align-items: center; gap: 7px; padding: 14px 14px 7px;
+}
+.search-field {
+  flex: 1; height: 30px; background: #FFFEFA;
+  border: 1px solid #E0D8C4; border-radius: 999px;
+  display: flex; align-items: center; padding: 0 10px; gap: 6px;
+  box-shadow: inset 0 1px 3px rgba(28,51,107,0.07);
+}
+.search-text { font-size: 11px; color: #9BAAC8; }
+.tbtn {
+  width: 30px; height: 30px; border-radius: 999px;
+  background: linear-gradient(160deg, #FFFFFF, #F5F0E8);
+  border: 1px solid #E0D8C4; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; box-shadow: 0 1px 3px rgba(28,51,107,0.08), inset 0 1px 0 rgba(255,255,255,0.95);
+}
+.nav { padding: 0 14px 10px; }
+.nav-track {
+  display: inline-flex; background: rgba(28,51,107,0.09);
+  border-radius: 999px; padding: 3px;
+  box-shadow: inset 0 2px 5px rgba(20,35,80,0.16);
+}
+.nav-item {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 16px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; color: #4A5E92;
+  min-width: 82px; justify-content: center;
+}
+.nav-item.active {
+  background: linear-gradient(160deg, #FFFFFF 0%, #FFFAF3 100%);
+  color: #1C336B;
+  box-shadow: 0 1px 4px rgba(28,51,107,0.14), 0 0 0 0.5px rgba(28,51,107,0.06);
+}
+.badge { background: rgba(40,92,204,0.12); color: #285CCC; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 999px; }
+.cards { padding: 0 10px 9px; display: flex; flex-direction: column; gap: 6px; }
+.card {
+  background: #FFFEFA; border: 1px solid #E0D8C4; border-radius: 13px;
+  padding: 11px 12px 11px 13px; display: flex; align-items: center; gap: 9px;
+  box-shadow: 0 1px 4px rgba(28,51,107,0.06), inset 3px 0 0 0 #285CCC;
+}
+.card-body { flex: 1; min-width: 0; }
+.card-name { font-size: 12px; font-weight: 700; color: #1C336B; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-row { display: flex; align-items: center; gap: 7px; }
+.favicons { display: flex; }
+.fav {
+  width: 13px; height: 13px; border-radius: 3px; border: 1.5px solid #FFFEFA;
+  margin-left: -3px; display: flex; align-items: center; justify-content: center;
+  font-size: 6.5px; font-weight: 800; color: white; flex-shrink: 0;
+}
+.fav:first-child { margin-left: 0; }
+.tab-count { font-size: 11px; color: #6B7EB5; }
+.rbtn {
+  width: 30px; height: 30px; border-radius: 999px;
+  background: linear-gradient(160deg, #FFFFFF, #F2EDE4);
+  border: 1px solid #E0D8C4;
+  box-shadow: 0 2px 5px rgba(28,51,107,0.1), inset 0 1px 0 rgba(255,255,255,0.9);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.save-wrap { padding: 6px 10px 14px; }
+.save-btn {
+  width: 100%; height: 38px;
+  background: linear-gradient(135deg, #3B6CE6 0%, #285CCC 100%);
+  border-radius: 999px; display: flex; align-items: center; justify-content: center;
+  gap: 7px; color: #FFF2BD; font-size: 13px; font-weight: 700;
+  box-shadow: 0 7px 24px rgba(40,92,204,0.44), 0 2px 6px rgba(40,92,204,0.26), inset 0 1px 0 rgba(255,255,255,0.18);
+}
+</style>
+</head>
+<body>
+<div class="bg-dots"></div>
+<div class="bg-glow"></div>
+
+<div class="left">
+  <div class="brand-row">
+    <div class="icon"><span class="icon-s">S</span></div>
+    <span class="wordmark">Stash</span>
+  </div>
+  <h1>Save your tabs.<br>Come back later.</h1>
+  <p class="sub">A beautiful tab manager that saves every session in one click and restores it instantly.</p>
+</div>
+
+<div class="right">
+  <div class="popup">
+    <div class="popup-canvas">
+      <div class="toolbar">
+        <div class="search-field">
+          <svg width="11" height="11" viewBox="0 0 13 13" fill="none"><circle cx="5.5" cy="5.5" r="4" stroke="#8899BB" stroke-width="1.5"/><line x1="8.8" y1="8.8" x2="11.5" y2="11.5" stroke="#8899BB" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span class="search-text">Search sessions...</span>
+        </div>
+        <div class="tbtn">
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M1 4h12M4 4V2M1 7h12M10 7V5M1 10h12M7 10v2" stroke="#4A5E92" stroke-width="1.3" stroke-linecap="round"/></svg>
+        </div>
+      </div>
+      <div class="nav">
+        <div class="nav-track">
+          <div class="nav-item active">Library <span class="badge">3</span></div>
+          <div class="nav-item">Trash</div>
+        </div>
+      </div>
+      <div class="cards">
+        <div class="card">
+          <div class="card-body">
+            <div class="card-name">Work — Sprint Planning</div>
+            <div class="card-row">
+              <div class="favicons">
+                <div class="fav" style="background:#24292e">G</div>
+                <div class="fav" style="background:#5E6AD2">L</div>
+                <div class="fav" style="background:#F24E1E">F</div>
+                <div class="fav" style="background:#252525">N</div>
+              </div>
+              <span class="tab-count">6 tabs</span>
+            </div>
+          </div>
+          <div class="rbtn"><svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M8 4l3 3-3 3" stroke="#1C336B" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+        <div class="card">
+          <div class="card-body">
+            <div class="card-name">Research — AI Design Tools</div>
+            <div class="card-row">
+              <div class="favicons">
+                <div class="fav" style="background:#D97757">A</div>
+                <div class="fav" style="background:#10A37F">O</div>
+                <div class="fav" style="background:#FF6900">P</div>
+              </div>
+              <span class="tab-count">8 tabs</span>
+            </div>
+          </div>
+          <div class="rbtn"><svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M8 4l3 3-3 3" stroke="#1C336B" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+        <div class="card">
+          <div class="card-body">
+            <div class="card-name">Weekend Reading</div>
+            <div class="card-row">
+              <div class="favicons">
+                <div class="fav" style="background:#1A1A1A">N</div>
+                <div class="fav" style="background:#FF6600">H</div>
+                <div class="fav" style="background:#4A90D9">B</div>
+              </div>
+              <span class="tab-count">5 tabs</span>
+            </div>
+          </div>
+          <div class="rbtn"><svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M8 4l3 3-3 3" stroke="#1C336B" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+      </div>
+      <div class="save-wrap">
+        <div class="save-btn">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 3h7l3 3v8H3V3z" stroke="#FFF2BD" stroke-width="1.6" stroke-linejoin="round"/><path d="M6 14V9h4v5" stroke="#FFF2BD" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          Save 9 tabs
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

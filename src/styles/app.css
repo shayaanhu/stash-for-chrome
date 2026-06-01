@@ -138,8 +138,9 @@ button:focus-visible,
   outline: none;
   box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 3px var(--color-accent);
 }
-/* Inputs and labels never show the global focus ring */
+/* Inputs, textareas and labels never show the global focus ring */
 input:focus-visible,
+textarea:focus-visible,
 label:focus-within {
   outline: none;
 }

@@ -195,7 +195,7 @@ export function PopupApp() {
 
   function startRename(session: StashSession) {
     setEditingId(session.id);
-    setDraftName(session.name);
+    setDraftName("");
   }
 
   async function submitRename(e?: FormEvent<HTMLFormElement>) {
@@ -208,7 +208,11 @@ export function PopupApp() {
   }
 
   function handleRenameKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Escape") { setEditingId(null); setDraftName(""); }
+    if (e.key === "Escape") {
+      setEditingId(null);
+      setDraftName("");
+      void reload();
+    }
   }
 
   return (
@@ -361,7 +365,12 @@ export function PopupApp() {
                       restoreBurstId={restoreBurstId}
                       compactMode={compactMode}
                       reduceMotion={Boolean(reduceMotion)}
-                      onDraftNameChange={setDraftName}
+                      onDraftNameChange={(name) => {
+                        setDraftName(name);
+                        setSessions((prev) =>
+                          prev.map((s) => (s.id === editingId ? { ...s, name } : s))
+                        );
+                      }}
                       onToggleExpanded={toggleExpanded}
                       onRenameStart={startRename}
                       onRenameSubmit={submitRename}
@@ -457,7 +466,7 @@ function SessionList({
                 }}
                 className={cn(
                   // Accent spine is an inset box-shadow so it follows the rounded edge the full height (no corner clipping)
-                  "group relative overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[inset_3px_0_0_0_var(--color-accent),var(--shadow-sm)] transition-shadow duration-[var(--dur-base)] hover:border-border-strong hover:shadow-[inset_3px_0_0_0_var(--color-accent),var(--shadow-md)]",
+                  "group relative overflow-hidden rounded-r-[var(--radius-card)] rounded-l-none border border-border bg-surface shadow-[inset_3px_0_0_0_var(--color-accent),var(--shadow-sm)] transition-shadow duration-[var(--dur-base)] hover:border-border-strong hover:shadow-[inset_3px_0_0_0_var(--color-accent),var(--shadow-md)]",
                   isFresh && "ring-2 ring-accent/30",
                 )}
               >
@@ -487,43 +496,61 @@ function SessionList({
 
                   {/* Title + meta */}
                   <div className="min-w-0 flex-1">
-                    {isEditing ? (
-                      <form className="flex items-center gap-1.5" onSubmit={onRenameSubmit}>
-                        <Input
-                          value={draftName}
-                          onChange={(e) => onDraftNameChange(e.target.value)}
-                          onKeyDown={onRenameKeyDown}
-                          onBlur={() => void onRenameSubmit()}
-                          className="h-7 text-sm"
-                          autoFocus
-                        />
-                        <Button type="submit" variant="primary" size="iconSm" aria-label="Save">
-                          <Check size={13} />
-                        </Button>
-                      </form>
-                    ) : (
-                      <button
-                        type="button"
-                        className="block w-full text-left"
-                        onClick={() => onToggleExpanded(session.id)}
+                    <div className="flex items-center gap-2">
+                      {isFresh && <FreshDot reduceMotion={reduceMotion} />}
+                      <form 
+                        className="w-full" 
+                        onSubmit={(e) => { e.preventDefault(); void onRenameSubmit(); }}
                       >
-                        <span className="flex items-center gap-2">
-                          {isFresh && <FreshDot reduceMotion={reduceMotion} />}
-                          <span className="font-display display-title block truncate text-[17px] font-semibold text-ink leading-snug">
-                            {session.name}
-                          </span>
-                        </span>
-                        <span className="mt-2 flex items-center gap-2">
-                          <FaviconSpine tabs={session.tabs} isRestoring={isRestoring} reduceMotion={reduceMotion} />
-                          <span className="inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 font-mono text-[11px] text-muted-2">
-                            <NumberFlow value={session.tabs.length} />&nbsp;{session.tabs.length === 1 ? "tab" : "tabs"}
-                          </span>
-                          <span className="inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 font-mono text-[11px] text-muted-2">
-                            {formatDate(session.createdAt)}
-                          </span>
-                        </span>
-                      </button>
-                    )}
+                        {isEditing ? (
+                          <textarea
+                            ref={(el) => {
+                              if (el && !el.dataset.hasFocused) {
+                                el.focus();
+                                el.select();
+                                el.dataset.hasFocused = "true";
+                              }
+                            }}
+                            value={draftName}
+                            onChange={(e) => onDraftNameChange(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                e.currentTarget.blur();
+                              } else {
+                                onRenameKeyDown(e as any);
+                              }
+                            }}
+                            onBlur={() => { if (isEditing) { void onRenameSubmit(); } }}
+                            className="font-display display-title block w-full text-[17px] font-semibold text-ink leading-snug bg-transparent border-none outline-none focus:outline-none focus:ring-0 pl-2 pr-0 py-0 rounded-none resize-none overflow-hidden cursor-text h-[48px] scrollbar-none"
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            className="block w-full text-left"
+                            onClick={() => onToggleExpanded(session.id)}
+                          >
+                            <span className="font-display display-title text-[17px] font-semibold text-ink leading-snug line-clamp-2 break-words select-none pl-2">
+                              {session.name}
+                            </span>
+                          </button>
+                        )}
+                      </form>
+                    </div>
+                    
+                    <button
+                      type="button"
+                      className="mt-2 flex w-full items-center gap-2 text-left"
+                      onClick={() => onToggleExpanded(session.id)}
+                    >
+                      <FaviconSpine tabs={session.tabs} isRestoring={isRestoring} reduceMotion={reduceMotion} />
+                      <span className="inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 font-mono text-[11px] text-muted-2">
+                        <NumberFlow value={session.tabs.length} />&nbsp;{session.tabs.length === 1 ? "tab" : "tabs"}
+                      </span>
+                      <span className="inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 font-mono text-[11px] text-muted-2 whitespace-nowrap">
+                        {formatDate(session.createdAt)}
+                      </span>
+                    </button>
                   </div>
 
                   {/* Right zone — secondary actions fade in on hover (reserved space, no shift),

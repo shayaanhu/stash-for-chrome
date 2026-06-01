@@ -495,10 +495,10 @@ function RestoreSimulation({ isActive }: { isActive: boolean }) {
         <motion.div
           variants={cardRestoreVariants}
           animate={isActive ? "active" : "initial"}
-          className="absolute inset-0 bg-[#FFFEFA] border border-border shadow-xs pl-3.5 pr-2 py-2 flex items-center justify-between rounded-lg overflow-visible"
+          className="absolute inset-0 bg-[#FFFEFA] border border-border shadow-xs pl-3.5 pr-2 py-2 flex items-center justify-between rounded-r-lg rounded-l-none overflow-visible"
           style={{ originY: "50%" }}
         >
-          <span className="absolute inset-y-0 left-0 w-[3px] bg-accent rounded-l-lg" />
+          <span className="absolute inset-y-0 left-0 w-[3px] bg-accent rounded-l-none" />
           <div className="text-left flex-1 min-w-0 pr-2">
             <span className="font-display block truncate text-[11px] font-bold text-ink leading-snug">
               Monday Reading

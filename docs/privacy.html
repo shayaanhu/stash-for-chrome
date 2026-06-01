@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — Stash</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #F4F0E4;
+      --surface: #FFFEFA;
+      --ink:     #1C336B;
+      --muted:   #4A5E92;
+      --border:  #E5DDC4;
+      --accent:  #2A55B1;
+    }
+
+    html { background: var(--bg); color: var(--ink); font-size: 16px; }
+
+    body {
+      font-family: "Georgia", serif;
+      line-height: 1.75;
+      padding: 3rem 1.5rem 6rem;
+    }
+
+    .wrap {
+      max-width: 680px;
+      margin: 0 auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 3rem 3.5rem;
+    }
+
+    /* Brand header */
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 2.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: #F6EBCF;
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .logo::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 4px;
+      background: #2A55B1;
+    }
+
+    .logo-letter {
+      font-family: "Georgia", serif;
+      font-size: 20px;
+      font-weight: bold;
+      color: #1D3261;
+      margin-left: 3px;
+    }
+
+    .brand-name {
+      font-family: "Georgia", serif;
+      font-size: 1.25rem;
+      font-weight: bold;
+      color: var(--ink);
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: bold;
+      line-height: 1.25;
+      margin-bottom: 0.4rem;
+      color: var(--ink);
+    }
+
+    .meta {
+      font-size: 0.875rem;
+      color: var(--muted);
+      margin-bottom: 2.5rem;
+    }
+
+    /* Summary box */
+    .summary {
+      background: #EBE8DD;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 2.5rem;
+      font-size: 0.9375rem;
+      color: var(--muted);
+    }
+
+    .summary strong {
+      display: block;
+      color: var(--ink);
+      font-size: 0.8125rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.5rem;
+    }
+
+    h2 {
+      font-size: 1.0625rem;
+      font-weight: bold;
+      color: var(--ink);
+      margin-top: 2.5rem;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    p { margin-bottom: 1rem; font-size: 0.9375rem; color: var(--muted); }
+    p:last-child { margin-bottom: 0; }
+
+    ul {
+      margin: 0.5rem 0 1rem 1.25rem;
+      font-size: 0.9375rem;
+      color: var(--muted);
+    }
+    li { margin-bottom: 0.4rem; }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .permission-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+      margin: 1rem 0;
+    }
+    .permission-table th {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      background: #EBE8DD;
+      color: var(--ink);
+      font-size: 0.8125rem;
+      border: 1px solid var(--border);
+    }
+    .permission-table td {
+      padding: 0.6rem 0.75rem;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      vertical-align: top;
+    }
+    .permission-table code {
+      font-family: "Courier New", monospace;
+      font-size: 0.8125rem;
+      color: var(--ink);
+    }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8125rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    @media (max-width: 640px) {
+      .wrap { padding: 1.75rem 1.25rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <div class="brand">
+      <div class="logo">
+        <span class="logo-letter">S</span>
+      </div>
+      <span class="brand-name">Stash</span>
+    </div>
+
+    <h1>Privacy Policy</h1>
+    <p class="meta">Effective date: 1 June 2026 &nbsp;·&nbsp; Applies to: Stash Chrome Extension, v1.0 and later</p>
+
+    <div class="summary">
+      <strong>Plain-English summary</strong>
+      Stash stores your tab data on your own device only. Nothing is sent to any
+      server. There are no accounts, no analytics, and no third-party services
+      involved. You can export or delete everything at any time.
+    </div>
+
+    <h2>1. Who we are</h2>
+    <p>
+      Stash is a Chrome extension developed and maintained by
+      Shayaan Qazi ("we", "us", "our"). You can reach us at
+      <a href="mailto:2014shanoo@gmail.com">2014shanoo@gmail.com</a>.
+    </p>
+
+    <h2>2. What data Stash processes</h2>
+    <p>When you explicitly choose to save a session, Stash captures and stores locally:</p>
+    <ul>
+      <li><strong>Tab URLs</strong> — the web address of each tab you save.</li>
+      <li><strong>Tab titles</strong> — the page title as shown in the browser tab.</li>
+      <li><strong>Favicons</strong> — the small site icon displayed in the browser tab. Oversized or embedded (data-URI) favicons are discarded automatically; only small URL-referenced icons are kept.</li>
+      <li><strong>A session name</strong> — auto-generated from the date and first tab title, editable by you at any time.</li>
+      <li><strong>Timestamps</strong> — when each session was created and when each tab was captured.</li>
+    </ul>
+    <p>
+      Stash does <strong>not</strong> capture passwords, form data, page content,
+      cookies, location, or any information beyond the URL, title, and icon
+      of each tab you choose to save.
+    </p>
+
+    <h2>3. How data is stored</h2>
+    <p>
+      All data is written exclusively to
+      <a href="https://developer.chrome.com/docs/extensions/reference/api/storage" target="_blank" rel="noopener">
+        <code>chrome.storage.local</code></a>
+      — Chrome's on-device extension storage. This data lives on your machine.
+      It is never transmitted to any server, shared with any third party,
+      or uploaded anywhere.
+    </p>
+    <p>
+      Stash requests the <code>unlimitedStorage</code> permission so that
+      heavy users (many sessions, many tabs) are not silently blocked by
+      Chrome's default 10 MB cap. This does not change where the data is
+      stored — it is still local only.
+    </p>
+
+    <h2>4. Why we collect it (purpose and legal basis)</h2>
+    <p>
+      The sole purpose of capturing tab URLs and titles is to fulfil the
+      core feature you explicitly requested: saving and later restoring
+      your browser sessions. No data is used for advertising, profiling,
+      analytics, or any purpose other than displaying your saved sessions
+      back to you and reopening them when you ask.
+    </p>
+    <p>
+      Processing is based on your <strong>explicit action</strong>. Stash
+      captures data only when you click "Save tabs", use the keyboard
+      shortcut, or right-click a page and choose a Stash menu item.
+      Stash is never active in the background passively reading your tabs.
+    </p>
+
+    <h2>5. Data retention and deletion</h2>
+    <p>You are in full control:</p>
+    <ul>
+      <li>Sessions stay in your library until you delete them.</li>
+      <li>Deleted sessions move to a trash folder and are automatically and
+          permanently removed after 30 days.</li>
+      <li>You can empty the trash at any time from the Stash popup.</li>
+      <li>You can export all sessions to a JSON file from the Settings page.</li>
+      <li>Uninstalling the extension removes all stored data from your device.</li>
+    </ul>
+
+    <h2>6. Permissions and why Stash needs them</h2>
+    <table class="permission-table">
+      <tr>
+        <th>Permission</th>
+        <th>Why it is needed</th>
+      </tr>
+      <tr>
+        <td><code>tabs</code></td>
+        <td>To read the URL, title, and favicon of your open tabs when you
+            explicitly trigger a save, and to reopen tabs when you restore
+            a session. Stash does not run content scripts or passively monitor
+            your tabs.</td>
+      </tr>
+      <tr>
+        <td><code>storage</code></td>
+        <td>To persist your saved sessions and settings in
+            <code>chrome.storage.local</code> on your device.</td>
+      </tr>
+      <tr>
+        <td><code>unlimitedStorage</code></td>
+        <td>To remove Chrome's default 10 MB cap on local extension storage,
+            so users with many sessions are never silently blocked.</td>
+      </tr>
+      <tr>
+        <td><code>contextMenus</code></td>
+        <td>To add "Save this tab" and "Save all tabs in this window"
+            right-click menu entries.</td>
+      </tr>
+      <tr>
+        <td><code>alarms</code></td>
+        <td>To schedule a periodic background task that permanently deletes
+            trashed sessions after their 30-day retention window, so your
+            device is not holding data you intended to discard.</td>
+      </tr>
+    </table>
+    <p>Stash does not request host permissions and cannot read the
+       content of any web page.</p>
+
+    <h2>7. No third-party data sharing</h2>
+    <p>
+      Stash does not sell, rent, transfer, or disclose your data to any
+      third party under any circumstances. There are no analytics services
+      (such as Google Analytics), no crash-reporting services, no advertising
+      networks, and no embedded third-party code that could transmit data.
+    </p>
+
+    <h2>8. No remote code execution</h2>
+    <p>
+      Stash does not fetch or execute any code from a remote server. All
+      logic ships as part of the extension package you install from the
+      Chrome Web Store. The extension makes no outbound network requests.
+    </p>
+
+    <h2>9. Children's privacy</h2>
+    <p>
+      Stash is a general-purpose productivity tool not directed at children.
+      We do not knowingly collect any information from users under the age of 13.
+    </p>
+
+    <h2>10. Your rights</h2>
+    <p>
+      Because all data is stored locally on your own device, you already
+      have direct access to and control over everything Stash holds. You can:
+    </p>
+    <ul>
+      <li><strong>Access</strong> — view all sessions in the Stash popup at any time.</li>
+      <li><strong>Export</strong> — download all sessions as a JSON file from Settings.</li>
+      <li><strong>Correct</strong> — rename any session inline in the popup.</li>
+      <li><strong>Delete</strong> — remove individual sessions, empty the trash, or
+          uninstall the extension to remove all data immediately.</li>
+    </ul>
+    <p>
+      If you have questions about your data, email us at
+      <a href="mailto:2014shanoo@gmail.com">2014shanoo@gmail.com</a>.
+    </p>
+
+    <h2>11. Changes to this policy</h2>
+    <p>
+      If we materially change what data Stash collects or how it is used,
+      we will update this page and revise the "Effective date" at the top.
+      For significant changes we will post a notice in the Chrome Web Store
+      listing. Continued use of the extension after a change constitutes
+      acceptance of the updated policy.
+    </p>
+
+    <h2>12. Contact</h2>
+    <p>
+      Questions or concerns about this privacy policy or Stash's data practices:
+      <a href="mailto:2014shanoo@gmail.com">2014shanoo@gmail.com</a>
+    </p>
+
+    <footer>
+      &copy; 2026 Shayaan Qazi &nbsp;·&nbsp;
+      <a href="https://github.com/shayaanhu/stash-for-chrome" target="_blank" rel="noopener">
+        GitHub
+      </a>
+    </footer>
+
+  </div>
+</body>
+</html>

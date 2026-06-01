@@ -12,7 +12,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 # Fraunces' old-style angled stress read as "tilted", so the icon mark uses Playfair.
 FONT = os.path.join(ROOT, "node_modules", "@fontsource-variable", "playfair-display", "files", "playfair-display-latin-wght-normal.woff2")
 AXES = {"wght": 700}
-OUT = os.path.join(ROOT, "public", "icons", "stash-logo.svg")
+OUT = os.path.join(ROOT, "store-assets", "stash-logo.svg")
 
 # Colours + geometry sampled directly from the reference image (Gemini render).
 TILE = "#F6EBCF"      # warm cream

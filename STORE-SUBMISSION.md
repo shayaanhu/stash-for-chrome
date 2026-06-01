@@ -47,7 +47,8 @@ Paste these into the "Permission justification" fields during review.
 >
 > Contact: <add your email>.
 
-Host this text at a public URL (e.g. the landing page `/privacy`) and link it in the dashboard.
+URL: **https://shayaanhu.github.io/stash-for-chrome/privacy**
+File: `docs/privacy.html` — enable GitHub Pages (see below) and this URL goes live.
 
 ## Pre-submit checklist
 

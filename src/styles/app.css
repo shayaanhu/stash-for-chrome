@@ -149,7 +149,18 @@ label:focus-within {
   background: color-mix(in srgb, var(--color-accent) 20%, transparent);
 }
 
-/* Scrollbar — subtle */
-::-webkit-scrollbar       { width: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 99px; }
+/* Scrollbar — visible, tactile, on-brand */
+::-webkit-scrollbar        { width: 11px; height: 11px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  {
+  background: var(--color-border-strong);
+  border-radius: 99px;
+  /* transparent border carves the thumb in from the edge so it reads as a pill */
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  transition: background-color var(--dur-fast) var(--ease-std);
+}
+::-webkit-scrollbar-thumb:hover   { background: var(--color-muted-2); background-clip: padding-box; }
+::-webkit-scrollbar-thumb:active  { background: var(--color-muted);   background-clip: padding-box; }
+/* Firefox */
+* { scrollbar-width: thin; scrollbar-color: var(--color-border-strong) transparent; }

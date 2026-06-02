@@ -215,40 +215,45 @@ export function OnboardingApp() {
         animate="show"
         className="w-full max-w-[920px] text-center"
       >
-        {/* Animated Headline Area */}
-        <motion.div variants={itemVariants} className="mb-2 mt-4 select-none flex flex-col items-center">
-          {/* Highly readable, prominent Welcome to text */}
-          <p className="font-mono text-[14px] font-extrabold uppercase tracking-[0.25em] text-muted mb-3 select-none">
-            Welcome to
-          </p>
+        {/* Headline — fixed layout. "Welcome to" is absolute and the underline only
+            fades, so NOTHING here changes height. The wordmark never reflows. */}
+        <motion.div
+          variants={itemVariants}
+          animate={{ y: phase === "saved" ? -10 : 0 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="relative mb-2 mt-4 select-none flex flex-col items-center"
+        >
+          {/* "Welcome to" — absolute, so its removal can't shift the wordmark */}
+          <AnimatePresence>
+            {phase !== "saved" && (
+              <motion.p
+                key="welcome"
+                initial={false}
+                exit={{ opacity: 0, y: -6, transition: { duration: 0.28, ease: "easeOut" as const } }}
+                className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap font-mono text-[14px] font-extrabold uppercase tracking-[0.25em] text-muted select-none"
+              >
+                Welcome to
+              </motion.p>
+            )}
+          </AnimatePresence>
 
           <motion.h1
             variants={wordmarkContainer}
             initial="hidden"
             animate="show"
-            className="wordmark text-[68px] leading-none text-ink select-none flex justify-center items-center gap-1.5"
+            className="wordmark mt-7 text-[68px] leading-none text-ink select-none flex justify-center items-center gap-1.5"
           >
             {stashLetters.map((char, i) => (
               <motion.span
                 key={i}
                 variants={letterVariants}
                 animate={
-                  phase === "saving"
+                  phase === "saved" && !reduceMotion
                     ? {
-                        y: [0, -12, 0],
-                        transition: { duration: 0.55, repeat: Infinity, ease: "easeInOut" as const, delay: i * 0.05 }
+                        scale: [1, 1.16, 1],
+                        transition: { type: "spring", stiffness: 340, damping: 12, delay: 0.1 + i * 0.05 }
                       }
-                    : phase === "saved"
-                    ? {
-                        scale: [1, 1.25, 1],
-                        color: "#285CCC",
-                        transition: { type: "spring", stiffness: 350, damping: 12, delay: i * 0.04 }
-                      }
-                    : {
-                        y: 0,
-                        color: "#1C336B",
-                        scale: 1,
-                      }
+                    : { scale: 1 }
                 }
                 className="inline-block"
               >
@@ -257,54 +262,105 @@ export function OnboardingApp() {
             ))}
           </motion.h1>
 
-          {/* Decorative Underline */}
+          {/* Underline — always rendered (reserves its space); only fades out on save */}
           <motion.div
-            initial={{ scaleX: 0 }}
-            animate={{ scaleX: 1 }}
-            transition={{ duration: 0.8, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            initial={{ scaleX: 0, opacity: 1 }}
+            animate={{ scaleX: 1, opacity: phase === "saved" ? 0 : 1 }}
+            transition={{
+              scaleX: { duration: 0.8, delay: 0.6, ease: [0.22, 1, 0.36, 1] },
+              opacity: { duration: 0.3 },
+            }}
             className="h-[2px] bg-accent/25 w-[100px] mx-auto mt-4 origin-center rounded-full"
           />
         </motion.div>
 
-        {/* Tagline */}
-        <motion.p
+        {/* Fixed-height stage — its height never changes between states, so the
+            vertically-centered page never recenters. Button and card simply
+            crossfade INSIDE this slot. Zero layout shift = zero jar. */}
+        <motion.div
           variants={itemVariants}
-          className="mx-auto mt-6 max-w-[480px] text-[16px] leading-relaxed text-muted"
+          className="relative z-10 mt-6 flex min-h-[268px] items-center justify-center"
         >
-          Save the tabs you don't need now, and bring the whole set back in a single click.
-          <span className="block mt-1 font-medium text-ink/80">Close the clutter without losing the trail.</span>
-        </motion.p>
-
-        {/* Dynamic Interactive CTA Zone */}
-        <motion.div variants={itemVariants} className="mt-10 relative z-10">
           <AnimatePresence mode="wait" initial={false}>
             {phase === "saved" ? (
               <motion.div
                 key="saved"
-                initial={reduceMotion ? false : { opacity: 0, scale: 0.94 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-                className="mx-auto max-w-[420px] rounded-2xl border border-success-border bg-surface p-6 shadow-md"
+                initial={reduceMotion ? false : { opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, transition: { duration: 0.18 } }}
+                whileHover={reduceMotion ? undefined : { y: -4, boxShadow: "0 18px 46px -10px rgba(20,35,80,0.34)", transition: { duration: 0.25, ease: "easeOut" } }}
+                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                className="relative mx-auto max-w-[440px] cursor-default overflow-hidden rounded-[22px] border border-success-border bg-surface px-8 py-9 shadow-[var(--shadow-pop)]"
               >
-                <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-accent text-[#FFF2BD] shadow-[var(--shadow-primary)] animate-pulse">
-                  <Check size={22} strokeWidth={3} />
+                {/* soft accent glow behind the card content */}
+                {!reduceMotion && (
+                  <motion.div
+                    aria-hidden
+                    initial={{ opacity: 0, scale: 0.7 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.7, delay: 0.25 }}
+                    className="pointer-events-none absolute -top-16 left-1/2 h-40 w-40 -translate-x-1/2 rounded-full bg-accent/10 blur-2xl"
+                  />
+                )}
+
+                {/* Checkmark with an expanding ring burst */}
+                <div className="relative mx-auto h-14 w-14">
+                  {!reduceMotion && (
+                    <>
+                      <motion.span
+                        className="absolute inset-0 rounded-full bg-accent/30"
+                        initial={{ scale: 0.6, opacity: 0.7 }}
+                        animate={{ scale: 2.4, opacity: 0 }}
+                        transition={{ duration: 0.9, delay: 0.35, ease: "easeOut" as const }}
+                      />
+                      <motion.span
+                        className="absolute inset-0 rounded-full border-2 border-accent/40"
+                        initial={{ scale: 0.8, opacity: 0.8 }}
+                        animate={{ scale: 1.8, opacity: 0 }}
+                        transition={{ duration: 0.7, delay: 0.47, ease: "easeOut" as const }}
+                      />
+                    </>
+                  )}
+                  <motion.div
+                    initial={reduceMotion ? false : { scale: 0, rotate: -40 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: "spring", stiffness: 380, damping: 14, delay: 0.28 }}
+                    className="relative flex h-14 w-14 items-center justify-center rounded-full bg-accent text-[#FFF2BD] shadow-[var(--shadow-primary)]"
+                  >
+                    <Check size={26} strokeWidth={3} />
+                  </motion.div>
                 </div>
-                <p className="mt-4 font-display display-emphasis text-[21px] text-ink font-semibold">
-                  Saved {savedCount} {savedCount === 1 ? "tab" : "tabs"} successfully!
-                </p>
-                <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
-                  Your tabs are safe and organized. Open the <span className="font-bold text-accent">Stash icon</span> in your browser toolbar anytime to view and restore them.
-                </p>
+
+                <motion.p
+                  initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.45, delay: 0.42, ease: [0.16, 1, 0.3, 1] }}
+                  className="mt-5 font-display display-emphasis text-[23px] font-semibold text-ink"
+                >
+                  Saved {savedCount} {savedCount === 1 ? "tab" : "tabs"}.
+                </motion.p>
+                <motion.p
+                  initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.45, delay: 0.54, ease: [0.16, 1, 0.3, 1] }}
+                  className="mx-auto mt-2.5 max-w-[330px] text-[13.5px] leading-relaxed text-muted"
+                >
+                  Your tabs are safe. Click the <span className="font-bold text-accent">Stash icon</span> in your toolbar anytime to bring them back.
+                </motion.p>
               </motion.div>
             ) : (
               <motion.div
                 key="cta"
                 initial={reduceMotion ? false : { opacity: 0 }}
                 animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-col items-center justify-center"
+                exit={{ opacity: 0, transition: { duration: 0.18 } }}
+                className="flex flex-col items-center justify-center gap-8"
               >
+                <p className="mx-auto max-w-[480px] text-[16px] leading-relaxed text-muted">
+                  Save the tabs you don't need now, and bring the whole set back in a single click.
+                  <span className="block mt-1 font-medium text-ink/80">Close the clutter without losing the trail.</span>
+                </p>
+
                 <div className="relative inline-block">
                   {/* Soft pulsing brand halo ring around button */}
                   {phase === "idle" && !reduceMotion && (
@@ -314,7 +370,6 @@ export function OnboardingApp() {
                       transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" as const }}
                     />
                   )}
-                  {/* High-fidelity custom spring button wrapper */}
                   <motion.div
                     whileHover={phase === "saving" ? undefined : { scale: 1.04 }}
                     whileTap={phase === "saving" ? undefined : { scale: 0.95 }}

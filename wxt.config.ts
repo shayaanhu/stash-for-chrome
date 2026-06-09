@@ -12,7 +12,7 @@ export default defineConfig({
     name: "Stash - Tab Manager, Save & Restore Tabs",
     description:
       "Save all your tabs in one click. Restore them any time. A tab manager that turns browser chaos into a clean, searchable library.",
-    version: "1.0.1",
+    version: "1.0.2",
     minimum_chrome_version: "116",
     permissions: ["contextMenus", "storage", "unlimitedStorage", "tabs", "alarms"],
     action: {

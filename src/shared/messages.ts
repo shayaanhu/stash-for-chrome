@@ -12,6 +12,7 @@ export type BackgroundRequest =
   | { type: "EMPTY_TRASH" }
   | { type: "REMOVE_TAB"; sessionId: string; tabId: string }
   | { type: "ADD_SESSIONS"; sessions: StashSession[] }
+  | { type: "UNDO_RESTORE_SESSION"; sessions: StashSession[] }
   | { type: "UPDATE_SETTINGS"; settings: Partial<StashSettings> };
 
 export type BackgroundResponse =

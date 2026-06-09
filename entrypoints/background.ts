@@ -81,8 +81,10 @@ async function handleRequest(request: BackgroundRequest): Promise<BackgroundResp
         return { ok: true, session: await saveTabs(request.target) };
       case "SAVE_CURRENT_TAB":
         return { ok: true, session: await saveCurrentTab(request.tabId) };
-      case "RESTORE_SESSION":
-        return { ok: true, session: await restoreSession(request.sessionId) };
+      case "RESTORE_SESSION": {
+        const settings = await getSettings();
+        return { ok: true, session: await restoreSession(request.sessionId, settings.restoreInNewWindow) };
+      }
       case "RESTORE_TAB":
         await createTab(request.url);
         return { ok: true };
@@ -100,6 +102,11 @@ async function handleRequest(request: BackgroundRequest): Promise<BackgroundResp
         return { ok: true, session: await removeTabFromSession(request.sessionId, request.tabId) };
       case "ADD_SESSIONS":
         return { ok: true, count: await addSessions(request.sessions) };
+      case "UNDO_RESTORE_SESSION": {
+        const count = await addSessions(request.sessions);
+        await closeTabsByUrls(request.sessions.flatMap((s) => s.tabs.map((t) => t.url)));
+        return { ok: true, count };
+      }
       case "UPDATE_SETTINGS":
         return { ok: true, settings: await updateSettings(request.settings) };
       default:
@@ -146,20 +153,46 @@ async function saveCurrentTab(tabId?: number) {
 }
 
 // ── Restore (runs here so it survives the popup closing on focus change) ───────
-async function restoreSession(sessionId: string) {
+async function restoreSession(sessionId: string, inNewWindow: boolean) {
   const sessions = await getSessions();
   const session = sessions.find((s) => s.id === sessionId);
-  if (!session) {
-    throw new Error("Session not found.");
-  }
+  if (!session) throw new Error("Session not found.");
 
   const urls = session.tabs.map((tab) => tab.url).filter(Boolean);
   if (urls.length > 0) {
-    await createWindow(urls);
+    if (inNewWindow) {
+      await createWindow(urls);
+    } else {
+      await openTabsInCurrentWindow(urls);
+    }
   }
   // Restoring consumes the stash entry; the removed session is returned for undo.
   await deleteSessionForever(sessionId);
   return session;
+}
+
+async function closeTabsByUrls(urls: string[]) {
+  const urlSet = new Set(urls.filter(Boolean));
+  if (urlSet.size === 0) return;
+  const allTabs = await queryTabs({});
+  const toClose = allTabs
+    .filter((tab) => tab.url && urlSet.has(tab.url) && typeof tab.id === "number")
+    .map((tab) => tab.id as number);
+  if (toClose.length > 0) await closeTabsSafely(allTabs.filter((t) => toClose.includes(t.id as number)));
+}
+
+async function openTabsInCurrentWindow(urls: string[]) {
+  const [activeTab] = await queryTabs({ active: true, lastFocusedWindow: true });
+  const windowId = activeTab?.windowId;
+  for (const url of urls) {
+    await new Promise<void>((resolve, reject) => {
+      chrome.tabs.create({ url, windowId, active: false }, () => {
+        const error = chrome.runtime.lastError;
+        if (error) reject(new Error(error.message));
+        else resolve();
+      });
+    });
+  }
 }
 
 // ── chrome.tabs / chrome.windows promise wrappers ──────────────────────────────

@@ -17,6 +17,7 @@ const SAVABLE_PROTOCOLS = ["http:", "https:", "file:"];
 export const defaultSettings: StashSettings = {
   saveTarget: "current-window",
   compactMode: false,
+  restoreInNewWindow: false,
 };
 
 type StoredMeta = { version: number };

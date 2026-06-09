@@ -126,6 +126,11 @@ export function PopupApp() {
     await reload();
   }
 
+  async function undoRestore(toAdd: StashSession[]) {
+    await sendBackgroundRequest({ type: "UNDO_RESTORE_SESSION", sessions: toAdd });
+    await reload();
+  }
+
   async function handleRestoreAll(session: StashSession) {
     if (!session.tabs.length) return;
     setRestoreBurstId(session.id);
@@ -139,7 +144,7 @@ export function PopupApp() {
     }
     toast.success(
       `Restored ${session.tabs.length} ${session.tabs.length === 1 ? "tab" : "tabs"}. Cleared from your stash.`,
-      { action: { label: "Undo", onClick: () => void reAddSessions([session]) } },
+      { action: { label: "Undo", onClick: () => void undoRestore([session]) } },
     );
   }
 

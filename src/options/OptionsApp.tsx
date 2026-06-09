@@ -1,4 +1,4 @@
-import { Download, Keyboard, LayoutList, PanelTopClose, Rows3, Upload } from "lucide-react";
+import { AppWindow, Download, Keyboard, LayoutList, PanelTopClose, Rows3, Upload } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import type { ChangeEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
@@ -35,6 +35,11 @@ export function OptionsApp() {
 
   async function setCompactMode(compactMode: boolean) {
     setSettings(await updateSettings({ compactMode }));
+    flash("Saved");
+  }
+
+  async function setRestoreInNewWindow(restoreInNewWindow: boolean) {
+    setSettings(await updateSettings({ restoreInNewWindow }));
     flash("Saved");
   }
 
@@ -139,6 +144,22 @@ export function OptionsApp() {
               type="checkbox"
               checked={settings.compactMode}
               onChange={(event) => void setCompactMode(event.target.checked)}
+              className="h-[18px] w-[18px] accent-accent"
+            />
+          </label>
+        </SettingGroup>
+
+        <SettingGroup
+          icon={<AppWindow size={18} />}
+          title="Restore destination"
+          description="Where tabs open when you restore a session."
+        >
+          <label className="flex min-h-11 items-center justify-between gap-4 rounded-[var(--radius-card)] border border-border bg-surface-subtle px-4 text-sm font-semibold">
+            <span>Open in a new window</span>
+            <input
+              type="checkbox"
+              checked={settings.restoreInNewWindow}
+              onChange={(e) => void setRestoreInNewWindow(e.target.checked)}
               className="h-[18px] w-[18px] accent-accent"
             />
           </label>

@@ -1,7 +1,5 @@
 import type { StashSession, StashTab } from "./types";
 
-const SESSION_TITLE_MAX_LENGTH = 58;
-
 export function isSavableChromeTab(tab: chrome.tabs.Tab) {
   if (!tab.url) {
     return false;
@@ -40,16 +38,10 @@ export function createSessionFromChromeTabs(tabs: chrome.tabs.Tab[], now = Date.
   };
 }
 
-export function createSessionName(tabs: StashTab[], now = Date.now()) {
+export function createSessionName(_tabs: StashTab[], now = Date.now()) {
   const date = new Date(now);
   const weekday = new Intl.DateTimeFormat(undefined, { weekday: "long" }).format(date);
-  const firstTitle = tabs[0]?.title || "Saved tabs";
-  const trimmedTitle =
-    firstTitle.length > SESSION_TITLE_MAX_LENGTH
-      ? `${firstTitle.slice(0, SESSION_TITLE_MAX_LENGTH - 1)}...`
-      : firstTitle;
-
-  return `${weekday} ${getDayPeriod(date)} · ${trimmedTitle}`;
+  return `${weekday} ${getDayPeriod(date)}`;
 }
 
 export function sortSessionsNewestFirst(sessions: StashSession[]) {

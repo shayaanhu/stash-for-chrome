@@ -524,14 +524,12 @@ function SessionList({
             return (
               <motion.article
                 key={session.id}
-                layout
                 initial={reduceMotion ? false : { opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.82, x: 24, transition: { duration: 0.2, ease: [0.4, 0, 1, 1] } }}
                 whileHover={reduceMotion ? undefined : { y: -3, transition: { type: "spring", stiffness: 420, damping: 26 } }}
                 whileTap={reduceMotion ? undefined : { scale: 0.992 }}
                 transition={{
-                  layout: { duration: 0.16, ease: [0.2, 0, 0, 1] },
                   duration: 0.22,
                   delay: reduceMotion ? 0 : Math.min(i * 0.04, 0.16),
                   ease: [0.22, 1, 0.36, 1],
@@ -671,15 +669,9 @@ function SessionList({
                       transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
                       className="m-0 list-none overflow-hidden border-t border-border p-1.5"
                     >
-                      <AnimatePresence initial={false}>
-                        {session.tabs.map((tab) => (
-                          <motion.li
+                      {session.tabs.map((tab) => (
+                          <li
                             key={tab.id}
-                            layout
-                            initial={reduceMotion ? false : { opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
-                            transition={{ duration: 0.14, ease: [0.2, 0, 0, 1] }}
                             className="group/row flex min-h-[38px] items-center gap-1 rounded-[10px] transition-colors hover:bg-surface-subtle"
                           >
                             <button
@@ -699,9 +691,8 @@ function SessionList({
                                 <Trash2 size={13} />
                               </ActionBtn>
                             )}
-                          </motion.li>
+                          </li>
                         ))}
-                      </AnimatePresence>
                     </motion.ul>
                   )}
                 </AnimatePresence>

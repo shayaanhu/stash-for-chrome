@@ -43,17 +43,12 @@ describe("isTabPinned", () => {
 });
 
 describe("createSessionName", () => {
-  it("includes a day period and the first tab title", () => {
+  it("names by weekday and day period, without any tab title", () => {
     const morning = createSessionName([stashTab({ title: "Vite docs" })], new Date(2026, 0, 1, 9).getTime());
     expect(morning).toContain("Morning");
-    expect(morning).toContain("Vite docs");
+    expect(morning).not.toContain("Vite docs");
     expect(createSessionName([stashTab()], new Date(2026, 0, 1, 14).getTime())).toContain("Afternoon");
     expect(createSessionName([stashTab()], new Date(2026, 0, 1, 20).getTime())).toContain("Evening");
-  });
-
-  it("truncates very long titles", () => {
-    const long = "x".repeat(120);
-    expect(createSessionName([stashTab({ title: long })]).length).toBeLessThan(long.length);
   });
 });
 

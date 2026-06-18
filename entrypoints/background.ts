@@ -130,6 +130,7 @@ async function saveTabs(target: SaveTarget) {
   const session = createSessionFromChromeTabs(tabsToSave);
   await addSession(session);
   await closeTabsSafely(tabsToSave);
+  flashSavedBadge();
   return session;
 }
 
@@ -150,7 +151,22 @@ async function saveCurrentTab(tabId?: number) {
   const session = createSessionFromChromeTabs([tab]);
   await addSession(session);
   await closeTabsSafely([tab]);
+  flashSavedBadge();
   return session;
+}
+
+// ── Save confirmation ──────────────────────────────────────────────────────────
+/**
+ * Flash a green ✓ on the toolbar icon after a save. This is the one indication
+ * that survives every entry point — popup button, keyboard shortcut, context
+ * menu — even when the popup has already closed with the window.
+ */
+const SAVED_BADGE_MS = 5000;
+function flashSavedBadge() {
+  void chrome.action.setBadgeBackgroundColor({ color: "#2E7D46" });
+  chrome.action.setBadgeTextColor?.({ color: "#FFFFFF" });
+  void chrome.action.setBadgeText({ text: "✓" });
+  setTimeout(() => void chrome.action.setBadgeText({ text: "" }), SAVED_BADGE_MS);
 }
 
 // ── Restore (runs here so it survives the popup closing on focus change) ───────

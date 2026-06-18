@@ -142,6 +142,30 @@ export function PopupApp() {
       toast.error(response.error);
       return;
     }
+
+    const r = response.restore;
+    // Anything failed → the session was kept (nothing lost), so no Undo. If the
+    // cause is file access, offer a one-tap jump to the toggle.
+    if (r && r.opened === 0) {
+      toast.error(
+        r.needsFileAccess
+          ? "Local files need “Allow access to file URLs”. Turn it on, then restore again."
+          : "Couldn’t open these tabs. Nothing was removed from your stash.",
+        r.needsFileAccess ? { action: { label: "Enable", onClick: openFileAccessSettings } } : undefined,
+      );
+      return;
+    }
+
+    if (r && r.failed > 0) {
+      toast.warning(
+        r.needsFileAccess
+          ? `Opened ${r.opened} of ${r.opened + r.failed}. Local files need file access — kept in your stash so you can retry.`
+          : `Opened ${r.opened} of ${r.opened + r.failed}. The rest are kept in your stash.`,
+        r.needsFileAccess ? { action: { label: "Enable", onClick: openFileAccessSettings } } : undefined,
+      );
+      return;
+    }
+
     toast.success(
       `Restored ${session.tabs.length} ${session.tabs.length === 1 ? "tab" : "tabs"}. Cleared from your stash.`,
       { action: { label: "Undo", onClick: () => void undoRestore([session]) } },
@@ -807,11 +831,11 @@ function FaviconSpine({
   const visible  = tabs.slice(0, 3);
   const overflow = tabs.length - visible.length;
   return (
-    <div className="flex items-center">
+    <div className="flex shrink-0 items-center">
       {visible.map((tab, i) => (
         <motion.span
           key={tab.id}
-          className="-ml-1.5 first:ml-0"
+          className="-ml-1.5 shrink-0 first:ml-0"
           style={{ zIndex: visible.length - i }}
           animate={
             isRestoring && !reduceMotion
@@ -824,7 +848,7 @@ function FaviconSpine({
         </motion.span>
       ))}
       {overflow > 0 && (
-        <span className="-ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-border bg-chip px-1 font-mono text-[9px] font-semibold text-muted-2 ring-[2px] ring-white">
+        <span className="-ml-1.5 inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full border border-border bg-chip px-1 font-mono text-[9px] font-semibold text-muted-2 ring-[2px] ring-white">
           +{overflow}
         </span>
       )}
@@ -832,15 +856,34 @@ function FaviconSpine({
   );
 }
 
+/** Open Stash's details page, where "Allow access to file URLs" lives. */
+function openFileAccessSettings() {
+  void chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` });
+}
+
+/** Chrome's own favicon cache — served locally, so it never 404s or needs auth. */
+function chromeFaviconUrl(pageUrl: string, size = 32): string {
+  const url = new URL(chrome.runtime.getURL("/_favicon/"));
+  url.searchParams.set("pageUrl", pageUrl);
+  url.searchParams.set("size", String(size));
+  return url.toString();
+}
+
 function Favicon({ tab, spine = false }: { tab: StashTab; spine?: boolean }) {
+  // Reset the error state if this slot gets reused for a different tab.
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [tab.url]);
+
   const cls = cn(
     "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-chip)] border border-border bg-chip object-cover text-[9px] font-bold text-muted-2",
     spine && "ring-[2px] ring-white shadow-[var(--shadow-xs)]",
   );
-  if (!tab.favicon) {
+
+  const src = tab.url ? chromeFaviconUrl(tab.url) : tab.favicon;
+  if (!src || failed) {
     return <span className={cls}>{tab.title.trim().charAt(0).toUpperCase() || "S"}</span>;
   }
-  return <img className={cls} src={tab.favicon} alt="" />;
+  return <img className={cls} src={src} alt="" onError={() => setFailed(true)} />;
 }
 
 function SaveBurstAnim({ burst, reduceMotion }: { burst: SaveBurst; reduceMotion: boolean }) {

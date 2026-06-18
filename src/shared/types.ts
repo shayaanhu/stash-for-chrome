@@ -23,3 +23,11 @@ export type StashSession = {
   archived?: boolean;
   deletedAt?: number;
 };
+
+/** Outcome of a restore: how many tabs opened, how many failed, and why. */
+export type RestoreSummary = {
+  opened: number;
+  failed: number;
+  /** A failure was a local file:// tab and file access is off (a fixable cause). */
+  needsFileAccess: boolean;
+};

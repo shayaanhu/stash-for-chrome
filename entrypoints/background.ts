@@ -14,7 +14,7 @@ import {
   updateSessionName,
   updateSettings,
 } from "../src/shared/storage";
-import type { SaveTarget } from "../src/shared/types";
+import type { RestoreSummary, SaveTarget } from "../src/shared/types";
 import {
   createSessionFromChromeTabs,
   isSavableChromeTab,
@@ -83,7 +83,8 @@ async function handleRequest(request: BackgroundRequest): Promise<BackgroundResp
         return { ok: true, session: await saveCurrentTab(request.tabId) };
       case "RESTORE_SESSION": {
         const settings = await getSettings();
-        return { ok: true, session: await restoreSession(request.sessionId, settings.restoreInNewWindow) };
+        const { session, restore } = await restoreSession(request.sessionId, settings.restoreInNewWindow);
+        return { ok: true, session, restore };
       }
       case "RESTORE_TAB":
         await createTab(request.url);
@@ -159,16 +160,66 @@ async function restoreSession(sessionId: string, inNewWindow: boolean) {
   if (!session) throw new Error("Session not found.");
 
   const urls = session.tabs.map((tab) => tab.url).filter(Boolean);
-  if (urls.length > 0) {
-    if (inNewWindow) {
-      await createWindow(urls);
-    } else {
-      await openTabsInCurrentWindow(urls);
+  const restore =
+    urls.length === 0
+      ? { opened: 0, failed: 0, needsFileAccess: false }
+      : inNewWindow
+        ? await openUrlsInNewWindow(urls)
+        : await openUrlsInCurrentWindow(urls);
+
+  // Consume the stash entry only on a fully clean restore. If anything failed
+  // (e.g. a file:// tab needs file access), keep the whole session so nothing is
+  // lost — the user can enable access and restore again to get the rest.
+  if (urls.length === 0 || (restore.opened > 0 && restore.failed === 0)) {
+    await deleteSessionForever(sessionId);
+  }
+  // The removed session is returned for undo.
+  return { session, restore };
+}
+
+/** Open URLs one at a time so a single failure can't abort the whole group. */
+async function openUrlsIntoWindow(urls: string[], windowId?: number): Promise<RestoreSummary> {
+  const fileAccess = await isAllowedFileSchemeAccess();
+  let opened = 0;
+  let failed = 0;
+  let needsFileAccess = false;
+
+  for (const url of urls) {
+    // A file:// tab without file access would throw "Cannot navigate to a file
+    // URL..." — skip it cleanly and flag the fixable cause instead.
+    if (!fileAccess && url.startsWith("file:")) {
+      failed++;
+      needsFileAccess = true;
+      continue;
+    }
+    try {
+      await createTabInWindow(url, windowId);
+      opened++;
+    } catch {
+      failed++;
     }
   }
-  // Restoring consumes the stash entry; the removed session is returned for undo.
-  await deleteSessionForever(sessionId);
-  return session;
+
+  return { opened, failed, needsFileAccess };
+}
+
+async function openUrlsInCurrentWindow(urls: string[]): Promise<RestoreSummary> {
+  const [activeTab] = await queryTabs({ active: true, lastFocusedWindow: true });
+  return openUrlsIntoWindow(urls, activeTab?.windowId);
+}
+
+async function openUrlsInNewWindow(urls: string[]): Promise<RestoreSummary> {
+  const windowId = await createEmptyWindow();
+  // Chrome opens a blank New Tab with the window; remember it so we can drop it
+  // once the real tabs are in.
+  const blanks = windowId !== undefined ? await queryTabs({ windowId }) : [];
+  const summary = await openUrlsIntoWindow(urls, windowId);
+
+  if (summary.opened > 0) {
+    const blankIds = blanks.flatMap((t) => (typeof t.id === "number" ? [t.id] : []));
+    if (blankIds.length > 0) await removeTabs(blankIds).catch(() => undefined);
+  }
+  return summary;
 }
 
 async function closeTabsByUrls(urls: string[]) {
@@ -181,21 +232,16 @@ async function closeTabsByUrls(urls: string[]) {
   if (toClose.length > 0) await closeTabsSafely(allTabs.filter((t) => toClose.includes(t.id as number)));
 }
 
-async function openTabsInCurrentWindow(urls: string[]) {
-  const [activeTab] = await queryTabs({ active: true, lastFocusedWindow: true });
-  const windowId = activeTab?.windowId;
-  for (const url of urls) {
-    await new Promise<void>((resolve, reject) => {
-      chrome.tabs.create({ url, windowId, active: false }, () => {
-        const error = chrome.runtime.lastError;
-        if (error) reject(new Error(error.message));
-        else resolve();
-      });
-    });
-  }
-}
-
 // ── chrome.tabs / chrome.windows promise wrappers ──────────────────────────────
+function isAllowedFileSchemeAccess(): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      chrome.extension.isAllowedFileSchemeAccess((allowed) => resolve(Boolean(allowed)));
+    } catch {
+      resolve(false);
+    }
+  });
+}
 function queryTabs(queryInfo: chrome.tabs.QueryInfo): Promise<chrome.tabs.Tab[]> {
   return new Promise((resolve, reject) => {
     chrome.tabs.query(queryInfo, (tabs) => {
@@ -216,7 +262,10 @@ function getTab(tabId: number): Promise<chrome.tabs.Tab> {
   });
 }
 
-function createTab(url: string): Promise<void> {
+async function createTab(url: string): Promise<void> {
+  if (url.startsWith("file:") && !(await isAllowedFileSchemeAccess())) {
+    throw new Error("Local files need “Allow access to file URLs” (chrome://extensions → Stash → Details).");
+  }
   return new Promise((resolve, reject) => {
     chrome.tabs.create({ url, active: true }, () => {
       const error = chrome.runtime.lastError;
@@ -226,12 +275,22 @@ function createTab(url: string): Promise<void> {
   });
 }
 
-function createWindow(urls: string[]): Promise<void> {
+function createTabInWindow(url: string, windowId?: number): Promise<void> {
   return new Promise((resolve, reject) => {
-    chrome.windows.create({ url: urls, focused: true }, () => {
+    chrome.tabs.create({ url, windowId, active: false }, () => {
       const error = chrome.runtime.lastError;
       if (error) reject(new Error(error.message));
       else resolve();
+    });
+  });
+}
+
+function createEmptyWindow(): Promise<number | undefined> {
+  return new Promise((resolve, reject) => {
+    chrome.windows.create({ focused: true }, (win) => {
+      const error = chrome.runtime.lastError;
+      if (error) reject(new Error(error.message));
+      else resolve(win?.id);
     });
   });
 }

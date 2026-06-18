@@ -1,4 +1,4 @@
-import type { SaveTarget, StashSession, StashSettings } from "./types";
+import type { RestoreSummary, SaveTarget, StashSession, StashSettings } from "./types";
 
 export type BackgroundRequest =
   | { type: "SAVE_TABS"; target: SaveTarget }
@@ -24,6 +24,8 @@ export type BackgroundResponse =
       sessions?: StashSession[];
       /** Generic count payload (e.g. number of sessions imported). */
       count?: number;
+      /** Per-tab outcome of a RESTORE_SESSION request. */
+      restore?: RestoreSummary;
       /** Updated settings after an UPDATE_SETTINGS request. */
       settings?: StashSettings;
     }

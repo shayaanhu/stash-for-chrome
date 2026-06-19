@@ -7,6 +7,7 @@ import {
   ensureMeta,
   getSessions,
   getSettings,
+  moveTab,
   purgeExpiredTrash,
   removeTabFromSession,
   restoreDeletedSession,
@@ -117,6 +118,10 @@ async function handleRequest(request: BackgroundRequest): Promise<BackgroundResp
         return { ok: true, sessions: await emptyTrash() };
       case "REMOVE_TAB":
         return { ok: true, session: await removeTabFromSession(request.sessionId, request.tabId) };
+      case "MOVE_TAB": {
+        const { to } = await moveTab(request.fromSessionId, request.toSessionId, request.tabId);
+        return { ok: true, session: to };
+      }
       case "ADD_SESSIONS":
         return { ok: true, count: await addSessions(request.sessions) };
       case "UNDO_RESTORE_SESSION": {

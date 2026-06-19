@@ -206,6 +206,40 @@ export function removeTabFromSession(sessionId: string, tabId: string): Promise<
   });
 }
 
+/** Move a tab from one session to another. Emptying the source trashes it (same
+ *  rule as removeTabFromSession). No-op if the tab/source is missing or same group. */
+export function moveTab(
+  fromSessionId: string,
+  toSessionId: string,
+  tabId: string,
+): Promise<{ from?: StashSession; to?: StashSession }> {
+  const now = Date.now();
+  return mutate<{ from?: StashSession; to?: StashSession }>((sessions) => {
+    const source = sessions.find((s) => s.id === fromSessionId);
+    const tab = source?.tabs.find((t) => t.id === tabId);
+    if (!source || !tab || fromSessionId === toSessionId) {
+      return { next: sessions, result: {} };
+    }
+
+    const next = sessions.map((session) => {
+      if (session.id === fromSessionId) {
+        const tabs = session.tabs.filter((t) => t.id !== tabId);
+        return tabs.length === 0 ? { ...session, tabs, deletedAt: now } : { ...session, tabs };
+      }
+      if (session.id === toSessionId) {
+        if (session.tabs.some((t) => t.id === tabId)) return session; // guard against dup
+        return { ...session, tabs: [...session.tabs, tab] };
+      }
+      return session;
+    });
+
+    return {
+      next,
+      result: { from: next.find((s) => s.id === fromSessionId), to: next.find((s) => s.id === toSessionId) },
+    };
+  });
+}
+
 export function softDeleteSession(sessionId: string): Promise<StashSession | undefined> {
   const now = Date.now();
   return mutate((sessions) => {

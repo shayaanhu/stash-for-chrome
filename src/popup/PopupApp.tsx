@@ -14,6 +14,19 @@ import {
   Undo2,
   X,
 } from "lucide-react";
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "motion/react";
 import type { FormEvent, KeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -51,6 +64,14 @@ export function PopupApp() {
   const [freshlySavedId, setFreshlySavedId] = useState<string | null>(null);
   const [saveBurst, setSaveBurst] = useState<SaveBurst | null>(null);
   const [restoreBurstId, setRestoreBurstId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<StashTab | null>(null);
+
+  // A small activation distance lets a plain click still restore a tab — only a
+  // deliberate drag (>6px) starts moving it.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor),
+  );
 
   // A single save fires several storage writes + an explicit refresh in quick
   // succession. Coalesce them into one trailing reload so the heavy
@@ -140,6 +161,32 @@ export function PopupApp() {
   async function undoRestore(toAdd: StashSession[]) {
     await sendBackgroundRequest({ type: "UNDO_RESTORE_SESSION", sessions: toAdd });
     await reload();
+  }
+
+  // ── Drag a tab between groups ────────────────────────────────────────────────
+  function onDragStart(event: DragStartEvent) {
+    setActiveTab((event.active.data.current?.tab as StashTab | undefined) ?? null);
+  }
+
+  async function onDragEnd(event: DragEndEvent) {
+    setActiveTab(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const fromSessionId = active.data.current?.fromSessionId as string | undefined;
+    const tab = active.data.current?.tab as StashTab | undefined;
+    const toSessionId = String(over.id);
+    const tabId = String(active.id);
+    if (!fromSessionId || !tab || fromSessionId === toSessionId) return;
+
+    // Optimistic: move locally now; the debounced reload reconciles with storage.
+    setSessions((prev) => applyTabMove(prev, fromSessionId, toSessionId, tabId));
+
+    const response = await sendBackgroundRequest({ type: "MOVE_TAB", fromSessionId, toSessionId, tabId });
+    if (!response.ok) {
+      toast.error(response.error);
+      void reload(); // roll back to the stored truth
+    }
   }
 
   async function handleRestoreAll(session: StashSession) {
@@ -441,33 +488,44 @@ export function PopupApp() {
                   )}
 
                   {visibleSessions.length > 0 ? (
-                    <SessionList
-                      sessions={visibleSessions}
-                      expandedIds={expandedIds}
-                      editingId={editingId}
-                      draftName={draftName}
-                      viewMode={viewMode}
-                      freshlySavedId={freshlySavedId}
-                      restoreBurstId={restoreBurstId}
-                      compactMode={compactMode}
-                      reduceMotion={Boolean(reduceMotion)}
-                      onDraftNameChange={(name) => {
-                        setDraftName(name);
-                        setSessions((prev) =>
-                          prev.map((s) => (s.id === editingId ? { ...s, name } : s))
-                        );
-                      }}
-                      onToggleExpanded={toggleExpanded}
-                      onRenameStart={startRename}
-                      onRenameSubmit={submitRename}
-                      onRenameKeyDown={handleRenameKeyDown}
-                      onRestoreAll={handleRestoreAll}
-                      onRestoreTab={handleRestoreTab}
-                      onDeleteSession={handleDeleteSession}
-                      onDeleteForever={handleDeleteForever}
-                      onRestoreDeleted={handleRestoreDeleted}
-                      onRemoveTab={handleRemoveTab}
-                    />
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragStart={onDragStart}
+                      onDragEnd={onDragEnd}
+                      onDragCancel={() => setActiveTab(null)}
+                    >
+                      <SessionList
+                        sessions={visibleSessions}
+                        expandedIds={expandedIds}
+                        editingId={editingId}
+                        draftName={draftName}
+                        viewMode={viewMode}
+                        freshlySavedId={freshlySavedId}
+                        restoreBurstId={restoreBurstId}
+                        compactMode={compactMode}
+                        reduceMotion={Boolean(reduceMotion)}
+                        onDraftNameChange={(name) => {
+                          setDraftName(name);
+                          setSessions((prev) =>
+                            prev.map((s) => (s.id === editingId ? { ...s, name } : s))
+                          );
+                        }}
+                        onToggleExpanded={toggleExpanded}
+                        onRenameStart={startRename}
+                        onRenameSubmit={submitRename}
+                        onRenameKeyDown={handleRenameKeyDown}
+                        onRestoreAll={handleRestoreAll}
+                        onRestoreTab={handleRestoreTab}
+                        onDeleteSession={handleDeleteSession}
+                        onDeleteForever={handleDeleteForever}
+                        onRestoreDeleted={handleRestoreDeleted}
+                        onRemoveTab={handleRemoveTab}
+                      />
+                      <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }}>
+                        {activeTab ? <TabDragPreview tab={activeTab} /> : null}
+                      </DragOverlay>
+                    </DndContext>
                   ) : (
                     <EmptyState
                       viewMode={viewMode}
@@ -526,194 +584,326 @@ function SessionList({
         aria-label={viewMode === "trash" ? "Deleted sessions" : "Saved sessions"}
       >
         <AnimatePresence initial={false}>
-          {sessions.map((session, i) => {
-            const isExpanded  = expandedIds.has(session.id);
-            const isEditing   = editingId === session.id;
-            const isFresh     = freshlySavedId === session.id;
-            const isRestoring = restoreBurstId === session.id;
-
-            return (
-              <motion.article
-                key={session.id}
-                initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.82, x: 24, transition: { duration: 0.2, ease: [0.4, 0, 1, 1] } }}
-                whileHover={reduceMotion ? undefined : { y: -3, transition: { type: "spring", stiffness: 420, damping: 26 } }}
-                whileTap={reduceMotion ? undefined : { scale: 0.992 }}
-                transition={{
-                  duration: 0.22,
-                  delay: reduceMotion ? 0 : Math.min(i * 0.04, 0.16),
-                  ease: [0.22, 1, 0.36, 1],
-                }}
-                className={cn(
-                  // Accent spine is an inset box-shadow so it follows the rounded edge the full height (no corner clipping)
-                  "group relative overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-sm)] transition-shadow duration-[var(--dur-base)] hover:border-border-strong hover:shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-md)]",
-                  isFresh && "ring-2 ring-accent/30",
-                )}
-              >
-                {/* Card header */}
-                <div className={cn(
-                  "flex items-start gap-3 pl-4 pr-3",
-                  compactMode ? "py-3" : "py-5",
-                )}>
-                  {/* Expand button — just the chevron, small, top-left */}
-                  <motion.button
-                    type="button"
-                    aria-label={isExpanded ? "Collapse" : "Expand"}
-                    onClick={() => onToggleExpanded(session.id)}
-                    whileHover={{ scale: 1.15 }}
-                    whileTap={{ scale: 0.88 }}
-                    transition={{ type: "spring", stiffness: 500, damping: 22 }}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/50 bg-surface-subtle text-muted shadow-[var(--shadow-xs)] transition-all duration-[var(--dur-fast)] hover:border-border-strong hover:bg-control-hover hover:text-ink hover:shadow-[var(--shadow-sm)]"
-                  >
-                    <motion.span
-                      animate={{ rotate: isExpanded ? 90 : 0 }}
-                      transition={{ type: "spring", stiffness: 400, damping: 24 }}
-                      className="inline-flex"
-                    >
-                      <ChevronRight size={16} />
-                    </motion.span>
-                  </motion.button>
-
-                  {/* Title + meta */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      {isFresh && <FreshDot reduceMotion={reduceMotion} />}
-                      <form 
-                        className="w-full" 
-                        onSubmit={(e) => { e.preventDefault(); void onRenameSubmit(); }}
-                      >
-                        {isEditing ? (
-                          <textarea
-                            ref={(el) => {
-                              if (el && !el.dataset.hasFocused) {
-                                el.focus();
-                                el.select();
-                                el.dataset.hasFocused = "true";
-                              }
-                            }}
-                            value={draftName}
-                            onChange={(e) => onDraftNameChange(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault();
-                                e.currentTarget.blur();
-                              } else {
-                                onRenameKeyDown(e as any);
-                              }
-                            }}
-                            onBlur={() => { if (isEditing) { void onRenameSubmit(); } }}
-                            className="font-display display-title block w-full text-[17px] font-semibold text-ink leading-snug bg-transparent border-none outline-none focus:outline-none focus:ring-0 pl-2 pr-0 py-0 rounded-none resize-none overflow-hidden cursor-text h-[48px] scrollbar-none"
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            className="block w-full text-left"
-                            onClick={() => onToggleExpanded(session.id)}
-                          >
-                            <span className="font-display display-title text-[17px] font-semibold text-ink leading-snug line-clamp-2 break-words select-none pl-2">
-                              {session.name}
-                            </span>
-                          </button>
-                        )}
-                      </form>
-                    </div>
-                    
-                    <button
-                      type="button"
-                      className="mt-2 flex w-full items-center gap-2 text-left"
-                      onClick={() => onToggleExpanded(session.id)}
-                    >
-                      <FaviconSpine tabs={session.tabs} isRestoring={isRestoring} reduceMotion={reduceMotion} />
-                      <span className="inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 font-mono text-[11px] text-muted-2">
-                        <NumberFlow value={session.tabs.length} />&nbsp;{session.tabs.length === 1 ? "tab" : "tabs"}
-                      </span>
-                      <span className="inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 font-mono text-[11px] text-muted-2 whitespace-nowrap">
-                        {formatDate(session.createdAt)}
-                      </span>
-                    </button>
-                  </div>
-
-                  {/* Right zone — secondary actions fade in on hover (reserved space, no shift),
-                      primary Restore is always visible and large for an easy tap. */}
-                  <div className="flex shrink-0 items-center gap-1">
-                    <div className="pointer-events-none flex items-center gap-0.5 opacity-0 transition-opacity duration-[var(--dur-base)] group-hover:pointer-events-auto group-hover:opacity-100">
-                      {viewMode === "trash" ? (
-                        <ActionBtn label="Delete forever" danger onClick={() => void onDeleteForever(session)}>
-                          <X size={14} />
-                        </ActionBtn>
-                      ) : (
-                        <>
-                          <ActionBtn label="Rename" onClick={() => onRenameStart(session)}>
-                            <Pencil size={14} />
-                          </ActionBtn>
-                          <ActionBtn label="Move to trash" danger onClick={() => void onDeleteSession(session)}>
-                            <Trash2 size={14} />
-                          </ActionBtn>
-                        </>
-                      )}
-                    </div>
-                    {viewMode === "trash" ? (
-                      <RestoreButton
-                        label="Restore from trash"
-                        icon={<Undo2 size={16} />}
-                        onClick={() => void onRestoreDeleted(session.id)}
-                      />
-                    ) : (
-                      <RestoreButton
-                        label="Restore tabs"
-                        icon={<RotateCcw size={16} />}
-                        onClick={() => void onRestoreAll(session)}
-                      />
-                    )}
-                  </div>
-                </div>
-
-                {/* Expanded tab list */}
-                <AnimatePresence initial={false}>
-                  {isExpanded && (
-                    <motion.ul
-                      key="tabs"
-                      initial={reduceMotion ? false : { height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={reduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
-                      className="m-0 list-none overflow-hidden border-t border-border p-1.5"
-                    >
-                      {session.tabs.map((tab) => (
-                          <li
-                            key={tab.id}
-                            className="group/row flex min-h-[38px] items-center gap-1 rounded-[10px] transition-colors hover:bg-surface-subtle"
-                          >
-                            <button
-                              type="button"
-                              className="flex flex-1 min-w-0 items-center gap-2.5 px-2.5 py-1.5 text-left transition-transform duration-[var(--dur-fast)] ease-[var(--ease-std)] group-hover/row:translate-x-0.5 active:scale-[0.99]"
-                              onClick={() => void onRestoreTab(tab)}
-                            >
-                              <Favicon tab={tab} />
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate text-[14px] font-medium text-ink">{tab.title}</span>
-                                <span className="block truncate font-mono text-[11.5px] text-muted-2">{formatUrl(tab.url)}</span>
-                              </span>
-                              <ExternalLink size={12} className="shrink-0 -translate-x-1 text-muted-2 opacity-0 transition-all duration-[var(--dur-fast)] group-hover/row:translate-x-0 group-hover/row:opacity-100" />
-                            </button>
-                            {viewMode === "library" && (
-                              <ActionBtn label="Remove tab" danger onClick={() => void onRemoveTab(session.id, tab.id)} className="mr-1">
-                                <Trash2 size={13} />
-                              </ActionBtn>
-                            )}
-                          </li>
-                        ))}
-                    </motion.ul>
-                  )}
-                </AnimatePresence>
-              </motion.article>
-            );
-          })}
+          {sessions.map((session, i) => (
+            <SessionCard
+              key={session.id}
+              session={session}
+              index={i}
+              isExpanded={expandedIds.has(session.id)}
+              isEditing={editingId === session.id}
+              isFresh={freshlySavedId === session.id}
+              isRestoring={restoreBurstId === session.id}
+              viewMode={viewMode}
+              draftName={draftName}
+              compactMode={compactMode}
+              reduceMotion={reduceMotion}
+              onDraftNameChange={onDraftNameChange}
+              onToggleExpanded={onToggleExpanded}
+              onRenameStart={onRenameStart}
+              onRenameSubmit={onRenameSubmit}
+              onRenameKeyDown={onRenameKeyDown}
+              onRestoreAll={onRestoreAll}
+              onRestoreTab={onRestoreTab}
+              onDeleteSession={onDeleteSession}
+              onDeleteForever={onDeleteForever}
+              onRestoreDeleted={onRestoreDeleted}
+              onRemoveTab={onRemoveTab}
+            />
+          ))}
         </AnimatePresence>
       </motion.section>
     </LayoutGroup>
   );
+}
+
+/* ── One session card (a drop target for tabs) ─────────────────── */
+function SessionCard({
+  session, index: i, isExpanded, isEditing, isFresh, isRestoring, viewMode,
+  draftName, compactMode, reduceMotion,
+  onDraftNameChange, onToggleExpanded, onRenameStart, onRenameSubmit,
+  onRenameKeyDown, onRestoreAll, onRestoreTab, onDeleteSession,
+  onDeleteForever, onRestoreDeleted, onRemoveTab,
+}: {
+  session: StashSession;
+  index: number;
+  isExpanded: boolean;
+  isEditing: boolean;
+  isFresh: boolean;
+  isRestoring: boolean;
+  viewMode: ViewMode;
+  draftName: string;
+  compactMode: boolean;
+  reduceMotion: boolean;
+  onDraftNameChange: (n: string) => void;
+  onToggleExpanded: (id: string) => void;
+  onRenameStart: (s: StashSession) => void;
+  onRenameSubmit: (e?: FormEvent<HTMLFormElement>) => void | Promise<void>;
+  onRenameKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void;
+  onRestoreAll: (s: StashSession) => void | Promise<void>;
+  onRestoreTab: (t: StashTab) => void | Promise<void>;
+  onDeleteSession: (s: StashSession) => void | Promise<void>;
+  onDeleteForever: (s: StashSession) => void | Promise<void>;
+  onRestoreDeleted: (id: string) => void | Promise<void>;
+  onRemoveTab: (sid: string, tid: string) => void | Promise<void>;
+}) {
+  const { setNodeRef, isOver, active } = useDroppable({
+    id: session.id,
+    disabled: viewMode !== "library",
+  });
+  // Highlight only when a tab from a *different* group is hovering over this one.
+  const isDropTarget =
+    isOver && (active?.data.current?.fromSessionId as string | undefined) !== session.id;
+
+  return (
+    <motion.article
+      ref={setNodeRef}
+      initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.82, x: 24, transition: { duration: 0.2, ease: [0.4, 0, 1, 1] } }}
+      whileHover={reduceMotion ? undefined : { y: -3, transition: { type: "spring", stiffness: 420, damping: 26 } }}
+      whileTap={reduceMotion ? undefined : { scale: 0.992 }}
+      transition={{
+        duration: 0.22,
+        delay: reduceMotion ? 0 : Math.min(i * 0.04, 0.16),
+        ease: [0.22, 1, 0.36, 1],
+      }}
+      className={cn(
+        // Accent spine is an inset box-shadow so it follows the rounded edge the full height (no corner clipping)
+        "group relative overflow-hidden rounded-[var(--radius-card)] border bg-surface shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-sm)] transition-[box-shadow,border-color,background-color] duration-[var(--dur-base)] hover:border-border-strong hover:shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-md)]",
+        isDropTarget ? "border-accent bg-accent/[0.05] ring-2 ring-accent/55" : "border-border",
+        isFresh && "ring-2 ring-accent/30",
+      )}
+    >
+      {/* Card header */}
+      <div className={cn(
+        "flex items-start gap-3 pl-4 pr-3",
+        compactMode ? "py-3" : "py-5",
+      )}>
+        {/* Expand button — just the chevron, small, top-left */}
+        <motion.button
+          type="button"
+          aria-label={isExpanded ? "Collapse" : "Expand"}
+          onClick={() => onToggleExpanded(session.id)}
+          whileHover={{ scale: 1.15 }}
+          whileTap={{ scale: 0.88 }}
+          transition={{ type: "spring", stiffness: 500, damping: 22 }}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/50 bg-surface-subtle text-muted shadow-[var(--shadow-xs)] transition-all duration-[var(--dur-fast)] hover:border-border-strong hover:bg-control-hover hover:text-ink hover:shadow-[var(--shadow-sm)]"
+        >
+          <motion.span
+            animate={{ rotate: isExpanded ? 90 : 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 24 }}
+            className="inline-flex"
+          >
+            <ChevronRight size={16} />
+          </motion.span>
+        </motion.button>
+
+        {/* Title + meta */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            {isFresh && <FreshDot reduceMotion={reduceMotion} />}
+            <form
+              className="w-full"
+              onSubmit={(e) => { e.preventDefault(); void onRenameSubmit(); }}
+            >
+              {isEditing ? (
+                <textarea
+                  ref={(el) => {
+                    if (el && !el.dataset.hasFocused) {
+                      el.focus();
+                      el.select();
+                      el.dataset.hasFocused = "true";
+                    }
+                  }}
+                  value={draftName}
+                  onChange={(e) => onDraftNameChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      e.currentTarget.blur();
+                    } else {
+                      onRenameKeyDown(e as any);
+                    }
+                  }}
+                  onBlur={() => { if (isEditing) { void onRenameSubmit(); } }}
+                  className="font-display display-title block w-full text-[17px] font-semibold text-ink leading-snug bg-transparent border-none outline-none focus:outline-none focus:ring-0 pl-2 pr-0 py-0 rounded-none resize-none overflow-hidden cursor-text h-[48px] scrollbar-none"
+                />
+              ) : (
+                <button
+                  type="button"
+                  className="block w-full text-left"
+                  onClick={() => onToggleExpanded(session.id)}
+                >
+                  <span className="font-display display-title text-[17px] font-semibold text-ink leading-snug line-clamp-2 break-words select-none pl-2">
+                    {session.name}
+                  </span>
+                </button>
+              )}
+            </form>
+          </div>
+
+          <button
+            type="button"
+            className="mt-2 flex w-full items-center gap-2 text-left"
+            onClick={() => onToggleExpanded(session.id)}
+          >
+            <FaviconSpine tabs={session.tabs} isRestoring={isRestoring} reduceMotion={reduceMotion} />
+            <span className="inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 font-mono text-[11px] text-muted-2">
+              <NumberFlow value={session.tabs.length} />&nbsp;{session.tabs.length === 1 ? "tab" : "tabs"}
+            </span>
+            <span className="inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 font-mono text-[11px] text-muted-2 whitespace-nowrap">
+              {formatDate(session.createdAt)}
+            </span>
+          </button>
+        </div>
+
+        {/* Right zone — secondary actions fade in on hover (reserved space, no shift),
+            primary Restore is always visible and large for an easy tap. */}
+        <div className="flex shrink-0 items-center gap-1">
+          <div className="pointer-events-none flex items-center gap-0.5 opacity-0 transition-opacity duration-[var(--dur-base)] group-hover:pointer-events-auto group-hover:opacity-100">
+            {viewMode === "trash" ? (
+              <ActionBtn label="Delete forever" danger onClick={() => void onDeleteForever(session)}>
+                <X size={14} />
+              </ActionBtn>
+            ) : (
+              <>
+                <ActionBtn label="Rename" onClick={() => onRenameStart(session)}>
+                  <Pencil size={14} />
+                </ActionBtn>
+                <ActionBtn label="Move to trash" danger onClick={() => void onDeleteSession(session)}>
+                  <Trash2 size={14} />
+                </ActionBtn>
+              </>
+            )}
+          </div>
+          {viewMode === "trash" ? (
+            <RestoreButton
+              label="Restore from trash"
+              icon={<Undo2 size={16} />}
+              onClick={() => void onRestoreDeleted(session.id)}
+            />
+          ) : (
+            <RestoreButton
+              label="Restore tabs"
+              icon={<RotateCcw size={16} />}
+              onClick={() => void onRestoreAll(session)}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Expanded tab list */}
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.ul
+            key="tabs"
+            initial={reduceMotion ? false : { height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={reduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+            className="m-0 list-none overflow-hidden border-t border-border p-1.5"
+          >
+            {session.tabs.map((tab) => (
+              <TabRow
+                key={tab.id}
+                tab={tab}
+                sessionId={session.id}
+                viewMode={viewMode}
+                onRestoreTab={onRestoreTab}
+                onRemoveTab={onRemoveTab}
+              />
+            ))}
+          </motion.ul>
+        )}
+      </AnimatePresence>
+    </motion.article>
+  );
+}
+
+/* ── One tab row (draggable into another group) ────────────────── */
+function TabRow({
+  tab, sessionId, viewMode, onRestoreTab, onRemoveTab,
+}: {
+  tab: StashTab;
+  sessionId: string;
+  viewMode: ViewMode;
+  onRestoreTab: (t: StashTab) => void | Promise<void>;
+  onRemoveTab: (sid: string, tid: string) => void | Promise<void>;
+}) {
+  const draggable = viewMode === "library";
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: tab.id,
+    data: { fromSessionId: sessionId, tab },
+    disabled: !draggable,
+  });
+
+  return (
+    <li
+      ref={setNodeRef}
+      {...(draggable ? { ...attributes, ...listeners } : {})}
+      className={cn(
+        "group/row flex min-h-[38px] items-center gap-1 rounded-[10px] transition-colors hover:bg-surface-subtle",
+        draggable && "cursor-grab active:cursor-grabbing",
+        isDragging && "opacity-40",
+      )}
+    >
+      <button
+        type="button"
+        className="flex flex-1 min-w-0 items-center gap-2.5 px-2.5 py-1.5 text-left transition-transform duration-[var(--dur-fast)] ease-[var(--ease-std)] group-hover/row:translate-x-0.5 active:scale-[0.99]"
+        onClick={() => void onRestoreTab(tab)}
+      >
+        <Favicon tab={tab} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[14px] font-medium text-ink">{tab.title}</span>
+          <span className="block truncate font-mono text-[11.5px] text-muted-2">{formatUrl(tab.url)}</span>
+        </span>
+        <ExternalLink size={12} className="shrink-0 -translate-x-1 text-muted-2 opacity-0 transition-all duration-[var(--dur-fast)] group-hover/row:translate-x-0 group-hover/row:opacity-100" />
+      </button>
+      {viewMode === "library" && (
+        <ActionBtn label="Remove tab" danger onClick={() => void onRemoveTab(sessionId, tab.id)} className="mr-1">
+          <Trash2 size={13} />
+        </ActionBtn>
+      )}
+    </li>
+  );
+}
+
+/* ── Floating preview shown under the cursor while dragging ─────── */
+function TabDragPreview({ tab }: { tab: StashTab }) {
+  return (
+    <div
+      className="flex max-w-[260px] items-center gap-2 rounded-[10px] border border-accent/40 bg-surface px-2.5 py-1.5 shadow-[var(--shadow-lg,0_12px_28px_-8px_rgba(0,0,0,0.35))]"
+      style={{ transform: "rotate(-2deg) scale(1.04)" }}
+    >
+      <Favicon tab={tab} />
+      <span className="truncate text-[14px] font-medium text-ink">{tab.title}</span>
+    </div>
+  );
+}
+
+/** Pure, optimistic mirror of storage.moveTab for instant UI feedback. */
+function applyTabMove(
+  sessions: StashSession[],
+  fromSessionId: string,
+  toSessionId: string,
+  tabId: string,
+): StashSession[] {
+  const source = sessions.find((s) => s.id === fromSessionId);
+  const tab = source?.tabs.find((t) => t.id === tabId);
+  if (!source || !tab || fromSessionId === toSessionId) return sessions;
+
+  const now = Date.now();
+  return sessions.map((session) => {
+    if (session.id === fromSessionId) {
+      const tabs = session.tabs.filter((t) => t.id !== tabId);
+      return tabs.length === 0 ? { ...session, tabs, deletedAt: now } : { ...session, tabs };
+    }
+    if (session.id === toSessionId) {
+      if (session.tabs.some((t) => t.id === tabId)) return session;
+      return { ...session, tabs: [...session.tabs, tab] };
+    }
+    return session;
+  });
 }
 
 /* ── Empty state ───────────────────────────────────────────────── */

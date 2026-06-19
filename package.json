@@ -13,6 +13,8 @@
     "icons": "node .aso/render_icons.mjs"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/utilities": "^3.2.2",
     "@fontsource-variable/fraunces": "^5.2.9",
     "@fontsource-variable/geist": "^5.2.9",
     "@fontsource-variable/instrument-sans": "^5.2.8",

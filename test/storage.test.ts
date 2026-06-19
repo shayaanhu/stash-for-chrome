@@ -7,6 +7,7 @@ import {
   deleteSessionForever,
   emptyTrash,
   getSessions,
+  moveTab,
   normalizeSessions,
   purgeExpiredTrash,
   removeTabFromSession,
@@ -136,6 +137,52 @@ describe("normalization", () => {
     expect(s.id.length).toBeGreaterThan(0);
     expect(s.name).toBeTypeOf("string");
     expect(s.tabs[0].id).toBeTypeOf("string");
+  });
+});
+
+describe("moveTab", () => {
+  function tab(id: string) {
+    return { id, url: `https://${id}.com`, title: id, favicon: "", capturedAt: 0 };
+  }
+
+  it("moves a tab from one session to another", async () => {
+    const from = makeSession({ id: "from", tabs: [tab("a"), tab("b")] });
+    const to = makeSession({ id: "to", tabs: [tab("c")] });
+    await addSession(from);
+    await addSession(to);
+
+    await moveTab("from", "to", "a");
+
+    const sessions = await getSessions();
+    expect(sessions.find((s) => s.id === "from")?.tabs.map((t) => t.id)).toEqual(["b"]);
+    expect(sessions.find((s) => s.id === "to")?.tabs.map((t) => t.id)).toEqual(["c", "a"]);
+  });
+
+  it("trashes the source when its last tab leaves", async () => {
+    const from = makeSession({ id: "from", tabs: [tab("only")] });
+    const to = makeSession({ id: "to", tabs: [tab("c")] });
+    await addSession(from);
+    await addSession(to);
+
+    await moveTab("from", "to", "only");
+
+    const found = (await getSessions()).find((s) => s.id === "from");
+    expect(found?.tabs).toHaveLength(0);
+    expect(found?.deletedAt).toBeTypeOf("number");
+  });
+
+  it("is a no-op for same-group or missing tab, with no duplication", async () => {
+    const from = makeSession({ id: "from", tabs: [tab("a")] });
+    const to = makeSession({ id: "to", tabs: [tab("c")] });
+    await addSession(from);
+    await addSession(to);
+
+    await moveTab("from", "from", "a"); // same group
+    await moveTab("from", "to", "nope"); // missing tab
+
+    const sessions = await getSessions();
+    expect(sessions.find((s) => s.id === "from")?.tabs.map((t) => t.id)).toEqual(["a"]);
+    expect(sessions.find((s) => s.id === "to")?.tabs.map((t) => t.id)).toEqual(["c"]);
   });
 });
 

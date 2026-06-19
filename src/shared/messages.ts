@@ -11,6 +11,7 @@ export type BackgroundRequest =
   | { type: "DELETE_FOREVER"; sessionId: string }
   | { type: "EMPTY_TRASH" }
   | { type: "REMOVE_TAB"; sessionId: string; tabId: string }
+  | { type: "MOVE_TAB"; fromSessionId: string; toSessionId: string; tabId: string }
   | { type: "ADD_SESSIONS"; sessions: StashSession[] }
   | { type: "UNDO_RESTORE_SESSION"; sessions: StashSession[] }
   | { type: "UPDATE_SETTINGS"; settings: Partial<StashSettings> };

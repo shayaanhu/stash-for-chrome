@@ -52,17 +52,28 @@ export function PopupApp() {
   const [saveBurst, setSaveBurst] = useState<SaveBurst | null>(null);
   const [restoreBurstId, setRestoreBurstId] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
-    const [nextSessions, nextSettings] = await Promise.all([getSessions(), getSettings()]);
-    setSessions(sortSessionsNewestFirst(nextSessions));
-    setSaveTarget(nextSettings.saveTarget);
-    setCompactMode(nextSettings.compactMode);
+  // A single save fires several storage writes + an explicit refresh in quick
+  // succession. Coalesce them into one trailing reload so the heavy
+  // re-normalize + list re-render happens once, not on top of the animations.
+  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reload = useCallback(() => {
+    if (reloadTimer.current) clearTimeout(reloadTimer.current);
+    reloadTimer.current = setTimeout(async () => {
+      reloadTimer.current = null;
+      const [nextSessions, nextSettings] = await Promise.all([getSessions(), getSettings()]);
+      setSessions(sortSessionsNewestFirst(nextSessions));
+      setSaveTarget(nextSettings.saveTarget);
+      setCompactMode(nextSettings.compactMode);
+    }, 50);
   }, []);
 
   useEffect(() => {
-    void reload();
+    reload();
     chrome.storage.onChanged.addListener(reload);
-    return () => chrome.storage.onChanged.removeListener(reload);
+    return () => {
+      chrome.storage.onChanged.removeListener(reload);
+      if (reloadTimer.current) clearTimeout(reloadTimer.current);
+    };
   }, [reload]);
 
   useEffect(() => {

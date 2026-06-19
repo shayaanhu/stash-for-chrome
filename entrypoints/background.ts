@@ -26,17 +26,12 @@ const TRASH_PURGE_ALARM = "stash-trash-purge";
 const TRASH_PURGE_PERIOD_MINUTES = 6 * 60;
 
 export default defineBackground(() => {
+  // Rebuild menus on every worker start too, not just install — so a reload or
+  // an updated set of items always takes effect without a full reinstall.
+  setupContextMenus();
+
   chrome.runtime.onInstalled.addListener((details) => {
-    chrome.contextMenus.create({
-      id: "stash-current-tab",
-      title: "Save this tab to Stash",
-      contexts: ["page"],
-    });
-    chrome.contextMenus.create({
-      id: "stash-all-tabs",
-      title: "Save all tabs in this window to Stash",
-      contexts: ["page"],
-    });
+    setupContextMenus();
 
     void ensureMeta();
     chrome.alarms.create(TRASH_PURGE_ALARM, { periodInMinutes: TRASH_PURGE_PERIOD_MINUTES });
@@ -61,8 +56,8 @@ export default defineBackground(() => {
   });
 
   chrome.contextMenus.onClicked.addListener((info, tab) => {
-    if (info.menuItemId === "stash-current-tab" && tab?.id) {
-      void saveCurrentTab(tab.id);
+    if (info.menuItemId === "stash-current-tab") {
+      void saveCurrentTab(tab?.id);
     } else if (info.menuItemId === "stash-all-tabs") {
       void getSettings().then((settings) => saveTabs(settings.saveTarget));
     }
@@ -73,6 +68,27 @@ export default defineBackground(() => {
     return true; // keep the channel open for the async response
   });
 });
+
+// ── Context menus ───────────────────────────────────────────────────────────────
+/** Wipe then rebuild so re-runs never collide on duplicate IDs. */
+function setupContextMenus() {
+  chrome.contextMenus.removeAll(() => {
+    void chrome.runtime.lastError; // ignore "nothing to remove" on first run
+    // Chrome can't add items to the tab strip, so these live on the page menu.
+    // The first item saves the current tab selection: right-click after
+    // shift/ctrl-picking tabs and it saves all of them at once.
+    chrome.contextMenus.create({
+      id: "stash-current-tab",
+      title: "Save this tab to Stash",
+      contexts: ["page"],
+    });
+    chrome.contextMenus.create({
+      id: "stash-all-tabs",
+      title: "Save all tabs in this window to Stash",
+      contexts: ["page"],
+    });
+  });
+}
 
 async function handleRequest(request: BackgroundRequest): Promise<BackgroundResponse> {
   try {
@@ -129,8 +145,11 @@ async function saveTabs(target: SaveTarget) {
 
   const session = createSessionFromChromeTabs(tabsToSave);
   await addSession(session);
-  await closeTabsSafely(tabsToSave);
   flashSavedBadge();
+  // Close tabs as best-effort cleanup AFTER the save is safely stored: the popup
+  // gets its confirmation without waiting on the window to clear, and a close
+  // hiccup can never turn a successful save into an error.
+  void closeTabsSafely(tabsToSave).catch(() => undefined);
   return session;
 }
 
@@ -150,8 +169,8 @@ async function saveCurrentTab(tabId?: number) {
 
   const session = createSessionFromChromeTabs([tab]);
   await addSession(session);
-  await closeTabsSafely([tab]);
   flashSavedBadge();
+  void closeTabsSafely([tab]).catch(() => undefined);
   return session;
 }
 

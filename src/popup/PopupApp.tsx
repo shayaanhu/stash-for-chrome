@@ -22,11 +22,16 @@ import {
   KeyboardSensor,
   PointerSensor,
   closestCenter,
+  pointerWithin,
   useDndContext,
   useDraggable,
+  useDroppable,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
+  type DragMoveEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import {
@@ -50,7 +55,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../com
 import { cn } from "../lib/utils";
 import { sendBackgroundRequest } from "../shared/messages";
 import { getSessions, getSessionOrder, getSettings } from "../shared/storage";
-import { applySessionOrder, matchesSession } from "../shared/session-utils";
+import { applySessionOrder, matchesSession, autoNameSession } from "../shared/session-utils";
 import type { SaveTarget, StashSession, StashTab } from "../shared/types";
 
 type ViewMode = "library" | "trash";
@@ -82,6 +87,15 @@ export function PopupApp() {
   const [activeSession, setActiveSession] = useState<StashSession | null>(null);
   const [openTabs, setOpenTabs] = useState<chrome.tabs.Tab[]>([]);
   const [openTabsExpanded, setOpenTabsExpanded] = useState(false);
+  const [isSessionTabDragging, setIsSessionTabDragging] = useState(false);
+  const [newGroupProgress, setNewGroupProgress] = useState(0);
+  const newGroupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const newGroupIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const newGroupDoneRef = useRef(false);
+  const newGroupDragDataRef = useRef<{ fromSessionId: string; tab: StashTab; tabId: string } | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const pointerYRef = useRef(0);
+  const initialPointerYRef = useRef(0);
 
   // A small activation distance lets a plain click still restore a tab — only a
   // deliberate drag (>6px) starts moving it.
@@ -131,6 +145,7 @@ export function PopupApp() {
       chrome.tabs.onCreated.removeListener(onTabUpdate);
     };
   }, [loadOpenTabs]);
+
 
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
@@ -213,19 +228,141 @@ export function PopupApp() {
   }
 
   // ── Drag tabs between groups / drag sessions to reorder ──────────────────────
+
+  // For tab drags: prefer pointer-within so the new-group-zone only activates
+  // when the cursor is physically over it — prevents closestCenter from stealing
+  // the event when the tab is near (but not on) the zone strip.
+  const collisionDetection: CollisionDetection = useCallback((args) => {
+    if (args.active.data.current?.type === "session") return closestCenter(args);
+    const within = pointerWithin(args);
+    return within.length > 0 ? within : closestCenter(args);
+  }, []);
+
   function onDragStart(event: DragStartEvent) {
     const type = event.active.data.current?.type as string | undefined;
     if (type === "session") {
       setActiveSession((event.active.data.current?.session as StashSession | undefined) ?? null);
+      setIsSessionTabDragging(false);
     } else {
-      // both "tab" and "open-tab" show a tab drag preview
       setActiveTab((event.active.data.current?.tab as StashTab | undefined) ?? null);
+      setIsSessionTabDragging(type === "tab");
+      const native = event.activatorEvent as PointerEvent | MouseEvent;
+      initialPointerYRef.current = native.clientY;
+      pointerYRef.current = native.clientY;
+    }
+  }
+
+  function onDragMove(event: DragMoveEvent) {
+    if (event.active.data.current?.type !== "tab") return;
+    const y = initialPointerYRef.current + event.delta.y;
+    pointerYRef.current = y;
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const zone = 80;
+    if (y > rect.bottom - zone) {
+      el.scrollTop += Math.min((y - (rect.bottom - zone)) / zone, 1) * 16;
+    } else if (y < rect.top + zone) {
+      el.scrollTop -= Math.min(((rect.top + zone) - y) / zone, 1) * 16;
+    }
+  }
+
+  function clearNewGroupDrag() {
+    if (newGroupTimerRef.current) { clearTimeout(newGroupTimerRef.current); newGroupTimerRef.current = null; }
+    if (newGroupIntervalRef.current) { clearInterval(newGroupIntervalRef.current); newGroupIntervalRef.current = null; }
+    setNewGroupProgress(0);
+    setIsSessionTabDragging(false);
+    newGroupDoneRef.current = false;
+    newGroupDragDataRef.current = null;
+  }
+
+  function onDragOver(event: DragOverEvent) {
+    if (event.active.data.current?.type !== "tab") return;
+
+    if (event.over?.id === "new-group-zone") {
+      if (newGroupTimerRef.current !== null || newGroupDoneRef.current) return;
+
+      const fromSessionId = event.active.data.current?.fromSessionId as string | undefined;
+      const tab = event.active.data.current?.tab as StashTab | undefined;
+      const tabId = String(event.active.id);
+      if (!fromSessionId || !tab) return;
+      newGroupDragDataRef.current = { fromSessionId, tab, tabId };
+
+      setNewGroupProgress(0);
+      const startTime = Date.now();
+      const duration = 1500;
+
+      newGroupIntervalRef.current = setInterval(() => {
+        setNewGroupProgress(Math.min(((Date.now() - startTime) / duration) * 100, 100));
+      }, 30);
+
+      newGroupTimerRef.current = setTimeout(() => {
+        clearInterval(newGroupIntervalRef.current!);
+        newGroupIntervalRef.current = null;
+        newGroupTimerRef.current = null;
+
+        const data = newGroupDragDataRef.current;
+        if (!data) return;
+
+        // Mark done BEFORE dispatching pointerup so onDragEnd bails correctly
+        newGroupDoneRef.current = true;
+
+        // End the drag — DnD Kit's PointerSensor listens for pointerup on document
+        document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true, pointerId: 1 }));
+
+        const now = Date.now();
+        const newSession: StashSession = {
+          id: crypto.randomUUID(),
+          name: autoNameSession([data.tab], now),
+          createdAt: now,
+          tabs: [data.tab],
+          manuallyCreated: true,
+        };
+
+        // Optimistic: new session with tab appears right after source; source loses the tab.
+        let newOrder: string[] = [];
+        setSessions((prev) => {
+          const updated = prev.map(s => s.id === data.fromSessionId
+            ? { ...s, tabs: s.tabs.filter(t => t.id !== data.tabId) }
+            : s
+          );
+          const idx = updated.findIndex(s => s.id === data.fromSessionId);
+          const result = idx === -1
+            ? [...updated, newSession]
+            : [...updated.slice(0, idx + 1), newSession, ...updated.slice(idx + 1)];
+          newOrder = result.filter(s => !s.deletedAt).map(s => s.id);
+          return result;
+        });
+
+        // Lock in display order FIRST so that reloads triggered by ADD_SESSIONS
+        // already see the correct order (new session after source, not at the top).
+        // Then create the empty session and move the tab atomically via MOVE_TAB
+        // (avoids normalizeSessions filtering the tab out).
+        void (newOrder.length
+          ? sendBackgroundRequest({ type: "REORDER_SESSIONS", order: newOrder })
+          : Promise.resolve({ ok: true } as const)
+        )
+          .then(() => sendBackgroundRequest({ type: "ADD_SESSIONS", sessions: [{ ...newSession, tabs: [] }] }))
+          .then(() => sendBackgroundRequest({ type: "MOVE_TAB", fromSessionId: data.fromSessionId, toSessionId: newSession.id, tabId: data.tabId }));
+      }, duration);
+    } else {
+      if (newGroupTimerRef.current) { clearTimeout(newGroupTimerRef.current); newGroupTimerRef.current = null; }
+      if (newGroupIntervalRef.current) { clearInterval(newGroupIntervalRef.current); newGroupIntervalRef.current = null; }
+      setNewGroupProgress(0);
     }
   }
 
   async function onDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     const type = active.data.current?.type as string | undefined;
+
+    if (newGroupDoneRef.current) {
+      clearNewGroupDrag();
+      setActiveTab(null);
+      setActiveSession(null);
+      return;
+    }
+    clearNewGroupDrag();
 
     if (type === "session") {
       setActiveSession(null);
@@ -271,10 +408,16 @@ export function PopupApp() {
       const tab = active.data.current?.tab as StashTab | undefined;
       const toSessionId = String(over.id);
       const tabId = String(active.id);
-      if (!fromSessionId || !tab || fromSessionId === toSessionId) return;
+      // "new-group-zone" is not a real session — drop without 1.5s hold is a no-op.
+      if (!fromSessionId || !tab || fromSessionId === toSessionId || toSessionId === "new-group-zone") return;
 
       // Optimistic: move locally now; the debounced reload reconciles with storage.
       setSessions((prev) => applyTabMove(prev, fromSessionId, toSessionId, tabId));
+      // Collapse the source if this was its last tab — keeps the "drop here" placeholder hidden.
+      const srcAfter = sessions.find(s => s.id === fromSessionId);
+      if (srcAfter && srcAfter.tabs.filter(t => t.id !== tabId).length === 0) {
+        setExpandedIds(cur => { const n = new Set(cur); n.delete(fromSessionId); return n; });
+      }
 
       const response = await sendBackgroundRequest({ type: "MOVE_TAB", fromSessionId, toSessionId, tabId });
       if (!response.ok) {
@@ -376,8 +519,13 @@ export function PopupApp() {
   }
 
   async function handleRemoveTab(sessionId: string, tabId: string) {
+    const src = sessions.find(s => s.id === sessionId);
+    const willBeEmpty = src ? src.tabs.filter(t => t.id !== tabId).length === 0 : false;
     await sendBackgroundRequest({ type: "REMOVE_TAB", sessionId, tabId });
     await reload();
+    if (willBeEmpty) {
+      setExpandedIds(cur => { const n = new Set(cur); n.delete(sessionId); return n; });
+    }
   }
 
   function toggleExpanded(id: string) {
@@ -553,7 +701,7 @@ export function PopupApp() {
           </div>
 
           {/* ── Content ──────────────────────────────────────── */}
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-5 pt-1">
+          <div ref={scrollContainerRef} className={cn("min-h-0 flex-1 overflow-y-auto px-4 pt-1", isSessionTabDragging ? "pb-24" : "pb-5")}>
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={`${viewMode}-${query.trim() ? "q" : "all"}`}
@@ -584,10 +732,13 @@ export function PopupApp() {
 
                   <DndContext
                     sensors={sensors}
-                    collisionDetection={closestCenter}
+                    collisionDetection={collisionDetection}
+                    autoScroll={false}
                     onDragStart={onDragStart}
+                    onDragMove={onDragMove}
                     onDragEnd={onDragEnd}
-                    onDragCancel={() => { setActiveTab(null); setActiveSession(null); }}
+                    onDragOver={onDragOver}
+                    onDragCancel={() => { clearNewGroupDrag(); setActiveTab(null); setActiveSession(null); }}
                   >
                     {viewMode === "library" && (
                       <div className="mb-2 flex items-center justify-between">
@@ -681,6 +832,10 @@ export function PopupApp() {
                         query={query}
                         reduceMotion={Boolean(reduceMotion)}
                       />
+                    )}
+
+                    {isSessionTabDragging && viewMode === "library" && (
+                      <NewGroupDropZone progress={newGroupProgress} />
                     )}
 
                     <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }}>
@@ -888,10 +1043,10 @@ function SessionCard({
 
         {/* Title + meta */}
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-start gap-2">
             {isFresh && <FreshDot reduceMotion={reduceMotion} />}
             <form
-              className="w-full"
+              className="flex-1 min-w-0"
               onSubmit={(e) => { e.preventDefault(); void onRenameSubmit(); }}
             >
               {isEditing ? (
@@ -928,6 +1083,40 @@ function SessionCard({
                 </button>
               )}
             </form>
+            {/* Action buttons live in the title row so they never overlap the date pills */}
+            <div className="flex shrink-0 items-center gap-1">
+              <div className="pointer-events-none flex items-center gap-0.5 opacity-0 transition-opacity duration-[var(--dur-base)] group-hover:pointer-events-auto group-hover:opacity-100">
+                {viewMode === "trash" ? (
+                  <ActionBtn label="Delete forever" danger onClick={() => void onDeleteForever(session)}>
+                    <X size={14} />
+                  </ActionBtn>
+                ) : (
+                  <>
+                    <ActionBtn label="Rename" onClick={() => onRenameStart(session)}>
+                      <Pencil size={14} />
+                    </ActionBtn>
+                    <ActionBtn label="Move to trash" danger onClick={() => void onDeleteSession(session)}>
+                      <Trash2 size={14} />
+                    </ActionBtn>
+                  </>
+                )}
+              </div>
+              {viewMode === "trash" ? (
+                <RestoreButton
+                  label="Restore from trash"
+                  icon={<Undo2 size={16} />}
+                  onClick={() => void onRestoreDeleted(session.id)}
+                />
+              ) : session.tabs.length > 0 ? (
+                <RestoreButton
+                  label="Restore tabs"
+                  icon={<RotateCcw size={16} />}
+                  onClick={() => void onRestoreAll(session)}
+                />
+              ) : (
+                <div className="h-9 w-9" />
+              )}
+            </div>
           </div>
 
           <button
@@ -943,42 +1132,6 @@ function SessionCard({
               {formatDate(session.createdAt)}
             </span>
           </button>
-        </div>
-
-        {/* Right zone — secondary actions fade in on hover (reserved space, no shift),
-            primary Restore is always visible and large for an easy tap. */}
-        <div className="flex shrink-0 items-center gap-1">
-          <div className="pointer-events-none flex items-center gap-0.5 opacity-0 transition-opacity duration-[var(--dur-base)] group-hover:pointer-events-auto group-hover:opacity-100">
-            {viewMode === "trash" ? (
-              <ActionBtn label="Delete forever" danger onClick={() => void onDeleteForever(session)}>
-                <X size={14} />
-              </ActionBtn>
-            ) : (
-              <>
-                <ActionBtn label="Rename" onClick={() => onRenameStart(session)}>
-                  <Pencil size={14} />
-                </ActionBtn>
-                <ActionBtn label="Move to trash" danger onClick={() => void onDeleteSession(session)}>
-                  <Trash2 size={14} />
-                </ActionBtn>
-              </>
-            )}
-          </div>
-          {viewMode === "trash" ? (
-            <RestoreButton
-              label="Restore from trash"
-              icon={<Undo2 size={16} />}
-              onClick={() => void onRestoreDeleted(session.id)}
-            />
-          ) : session.tabs.length > 0 ? (
-            <RestoreButton
-              label="Restore tabs"
-              icon={<RotateCcw size={16} />}
-              onClick={() => void onRestoreAll(session)}
-            />
-          ) : (
-            <div className="h-9 w-9" />
-          )}
         </div>
       </div>
 
@@ -1029,7 +1182,7 @@ function TabRow({
   const draggable = viewMode === "library";
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: tab.id,
-    data: { fromSessionId: sessionId, tab },
+    data: { type: "tab", fromSessionId: sessionId, tab },
     disabled: !draggable,
   });
 
@@ -1144,11 +1297,10 @@ function applyTabMove(
   const tab = source?.tabs.find((t) => t.id === tabId);
   if (!source || !tab || fromSessionId === toSessionId) return sessions;
 
-  const now = Date.now();
   return sessions.map((session) => {
     if (session.id === fromSessionId) {
       const tabs = session.tabs.filter((t) => t.id !== tabId);
-      return tabs.length === 0 ? { ...session, tabs, deletedAt: now } : { ...session, tabs };
+      return { ...session, tabs };
     }
     if (session.id === toSessionId) {
       if (session.tabs.some((t) => t.id === tabId)) return session;
@@ -1156,6 +1308,33 @@ function applyTabMove(
     }
     return session;
   });
+}
+
+/* ── New-group drop zone (shown while dragging a session tab) ───── */
+function NewGroupDropZone({ progress }: { progress: number }) {
+  const { setNodeRef, isOver } = useDroppable({ id: "new-group-zone" });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "relative mt-3 flex h-12 items-center justify-center gap-2 overflow-hidden rounded-[var(--radius-card)] border-2 border-dashed transition-colors duration-150",
+        isOver
+          ? "border-accent/50 bg-accent/[0.06] text-accent-text"
+          : "border-border/60 text-muted-2",
+      )}
+    >
+      <Plus size={13} className="shrink-0" />
+      <span className="font-body text-[12px] font-medium select-none">
+        {isOver ? "Hold to create new group…" : "Drop here to create new group"}
+      </span>
+      {isOver && (
+        <div
+          className="absolute bottom-0 left-0 h-[3px] bg-accent"
+          style={{ width: `${progress}%` }}
+        />
+      )}
+    </div>
+  );
 }
 
 /* ── Empty state ───────────────────────────────────────────────── */

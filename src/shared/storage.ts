@@ -92,8 +92,9 @@ function normalizeSession(raw: unknown): StashSession | null {
   const deletedAt = typeof raw.deletedAt === "number" ? raw.deletedAt : undefined;
   const manuallyCreated = raw.manuallyCreated === true;
 
-  // A non-trash session with no usable tabs is junk unless manually created.
-  if (tabs.length === 0 && deletedAt === undefined && !manuallyCreated) return null;
+  // Only discard sessions that have no valid id — empty-tab sessions are kept
+  // because the user may have moved all tabs out intentionally.
+  if (typeof raw.id !== "string" || !raw.id) return null;
 
   const id = typeof raw.id === "string" && raw.id ? raw.id : crypto.randomUUID();
   const createdAt = typeof raw.createdAt === "number" ? raw.createdAt : Date.now();
@@ -197,13 +198,11 @@ export function updateSessionName(sessionId: string, name: string): Promise<Stas
 }
 
 export function removeTabFromSession(sessionId: string, tabId: string): Promise<StashSession | undefined> {
-  const now = Date.now();
   return mutate((sessions) => {
     const next = sessions.map((session) => {
       if (session.id !== sessionId) return session;
       const tabs = session.tabs.filter((tab) => tab.id !== tabId);
-      // Emptying the last tab moves the session to trash rather than vanishing silently.
-      return tabs.length === 0 ? { ...session, tabs, deletedAt: now } : { ...session, tabs };
+      return { ...session, tabs };
     });
     return { next, result: next.find((s) => s.id === sessionId) };
   });
@@ -216,7 +215,6 @@ export function moveTab(
   toSessionId: string,
   tabId: string,
 ): Promise<{ from?: StashSession; to?: StashSession }> {
-  const now = Date.now();
   return mutate<{ from?: StashSession; to?: StashSession }>((sessions) => {
     const source = sessions.find((s) => s.id === fromSessionId);
     const tab = source?.tabs.find((t) => t.id === tabId);
@@ -227,7 +225,7 @@ export function moveTab(
     const next = sessions.map((session) => {
       if (session.id === fromSessionId) {
         const tabs = session.tabs.filter((t) => t.id !== tabId);
-        return tabs.length === 0 ? { ...session, tabs, deletedAt: now } : { ...session, tabs };
+        return { ...session, tabs };
       }
       if (session.id === toSessionId) {
         if (session.tabs.some((t) => t.id === tabId)) return session; // guard against dup

@@ -4,9 +4,11 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  GripVertical,
   Loader2,
   PanelTopClose,
   Pencil,
+  Plus,
   RotateCcw,
   Search,
   Settings,
@@ -20,13 +22,20 @@ import {
   KeyboardSensor,
   PointerSensor,
   closestCenter,
+  useDndContext,
   useDraggable,
-  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "motion/react";
 import type { FormEvent, KeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -40,8 +49,8 @@ import { Toaster } from "../components/ui/toaster";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../components/ui/tooltip";
 import { cn } from "../lib/utils";
 import { sendBackgroundRequest } from "../shared/messages";
-import { getSessions, getSettings } from "../shared/storage";
-import { matchesSession, sortSessionsNewestFirst } from "../shared/session-utils";
+import { getSessions, getSessionOrder, getSettings } from "../shared/storage";
+import { applySessionOrder, matchesSession } from "../shared/session-utils";
 import type { SaveTarget, StashSession, StashTab } from "../shared/types";
 
 type ViewMode = "library" | "trash";
@@ -65,6 +74,7 @@ export function PopupApp() {
   const [saveBurst, setSaveBurst] = useState<SaveBurst | null>(null);
   const [restoreBurstId, setRestoreBurstId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<StashTab | null>(null);
+  const [activeSession, setActiveSession] = useState<StashSession | null>(null);
 
   // A small activation distance lets a plain click still restore a tab — only a
   // deliberate drag (>6px) starts moving it.
@@ -81,8 +91,8 @@ export function PopupApp() {
     if (reloadTimer.current) clearTimeout(reloadTimer.current);
     reloadTimer.current = setTimeout(async () => {
       reloadTimer.current = null;
-      const [nextSessions, nextSettings] = await Promise.all([getSessions(), getSettings()]);
-      setSessions(sortSessionsNewestFirst(nextSessions));
+      const [nextSessions, nextSettings, nextOrder] = await Promise.all([getSessions(), getSettings(), getSessionOrder()]);
+      setSessions(applySessionOrder(nextSessions, nextOrder));
       setSaveTarget(nextSettings.saveTarget);
       setCompactMode(nextSettings.compactMode);
     }, 50);
@@ -163,29 +173,63 @@ export function PopupApp() {
     await reload();
   }
 
-  // ── Drag a tab between groups ────────────────────────────────────────────────
+  async function handleCreateEmptyGroup() {
+    const response = await sendBackgroundRequest({ type: "CREATE_EMPTY_SESSION" });
+    if (!response.ok || !response.session) {
+      toast.error("Couldn't create group.");
+      return;
+    }
+    await reload();
+    const session = response.session;
+    setEditingId(session.id);
+    setDraftName(session.name);
+    setOriginalName(session.name);
+    setExpandedIds((cur) => new Set(cur).add(session.id));
+  }
+
+  // ── Drag tabs between groups / drag sessions to reorder ──────────────────────
   function onDragStart(event: DragStartEvent) {
-    setActiveTab((event.active.data.current?.tab as StashTab | undefined) ?? null);
+    const type = event.active.data.current?.type as string | undefined;
+    if (type === "session") {
+      setActiveSession((event.active.data.current?.session as StashSession | undefined) ?? null);
+    } else {
+      setActiveTab((event.active.data.current?.tab as StashTab | undefined) ?? null);
+    }
   }
 
   async function onDragEnd(event: DragEndEvent) {
-    setActiveTab(null);
     const { active, over } = event;
-    if (!over) return;
+    const type = active.data.current?.type as string | undefined;
 
-    const fromSessionId = active.data.current?.fromSessionId as string | undefined;
-    const tab = active.data.current?.tab as StashTab | undefined;
-    const toSessionId = String(over.id);
-    const tabId = String(active.id);
-    if (!fromSessionId || !tab || fromSessionId === toSessionId) return;
+    if (type === "session") {
+      setActiveSession(null);
+      if (!over || active.id === over.id) return;
 
-    // Optimistic: move locally now; the debounced reload reconciles with storage.
-    setSessions((prev) => applyTabMove(prev, fromSessionId, toSessionId, tabId));
+      setSessions((prev) => {
+        const oldIndex = prev.findIndex((s) => s.id === active.id);
+        const newIndex = prev.findIndex((s) => s.id === over.id);
+        if (oldIndex === -1 || newIndex === -1) return prev;
+        const next = arrayMove(prev, oldIndex, newIndex);
+        void sendBackgroundRequest({ type: "REORDER_SESSIONS", order: next.map((s) => s.id) });
+        return next;
+      });
+    } else {
+      setActiveTab(null);
+      if (!over) return;
+      const fromSessionId = active.data.current?.fromSessionId as string | undefined;
+      const tab = active.data.current?.tab as StashTab | undefined;
+      const toSessionId = String(over.id);
+      const tabId = String(active.id);
+      if (!fromSessionId || !tab || fromSessionId === toSessionId) return;
 
-    const response = await sendBackgroundRequest({ type: "MOVE_TAB", fromSessionId, toSessionId, tabId });
-    if (!response.ok) {
-      toast.error(response.error);
-      void reload(); // roll back to the stored truth
+      // Optimistic: move locally now; the debounced reload reconciles with storage.
+      setSessions((prev) => applyTabMove(prev, fromSessionId, toSessionId, tabId));
+
+      const response = await sendBackgroundRequest({ type: "MOVE_TAB", fromSessionId, toSessionId, tabId });
+      if (!response.ok) {
+        toast.error(response.error);
+        void reload();
+      }
     }
   }
 
@@ -487,14 +531,34 @@ export function PopupApp() {
                     </div>
                   )}
 
+                  {viewMode === "library" && (
+                    <div className="mb-2 flex justify-end">
+                      <motion.button
+                        type="button"
+                        onClick={() => void handleCreateEmptyGroup()}
+                        whileHover={{ y: -1 }}
+                        whileTap={{ scale: 0.95, y: 0 }}
+                        transition={{ type: "spring", stiffness: 480, damping: 26 }}
+                        className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 font-body text-[12px] font-medium text-muted shadow-[var(--shadow-sm)] transition-[box-shadow,color] duration-[var(--dur-fast)] hover:text-ink hover:shadow-[var(--shadow-md)]"
+                      >
+                        <Plus size={12} />
+                        New group
+                      </motion.button>
+                    </div>
+                  )}
+
                   {visibleSessions.length > 0 ? (
                     <DndContext
                       sensors={sensors}
                       collisionDetection={closestCenter}
                       onDragStart={onDragStart}
                       onDragEnd={onDragEnd}
-                      onDragCancel={() => setActiveTab(null)}
+                      onDragCancel={() => { setActiveTab(null); setActiveSession(null); }}
                     >
+                      <SortableContext
+                        items={visibleSessions.map((s) => s.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
                       <SessionList
                         sessions={visibleSessions}
                         expandedIds={expandedIds}
@@ -522,8 +586,9 @@ export function PopupApp() {
                         onRestoreDeleted={handleRestoreDeleted}
                         onRemoveTab={handleRemoveTab}
                       />
+                      </SortableContext>
                       <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }}>
-                        {activeTab ? <TabDragPreview tab={activeTab} /> : null}
+                        {activeTab ? <TabDragPreview tab={activeTab} /> : activeSession ? <SessionCardGhost session={activeSession} /> : null}
                       </DragOverlay>
                     </DndContext>
                   ) : (
@@ -616,7 +681,7 @@ function SessionList({
   );
 }
 
-/* ── One session card (a drop target for tabs) ─────────────────── */
+/* ── One session card (drop target for tabs, draggable for reorder) ─ */
 function SessionCard({
   session, index: i, isExpanded, isEditing, isFresh, isRestoring, viewMode,
   draftName, compactMode, reduceMotion,
@@ -646,21 +711,46 @@ function SessionCard({
   onRestoreDeleted: (id: string) => void | Promise<void>;
   onRemoveTab: (sid: string, tid: string) => void | Promise<void>;
 }) {
-  const { setNodeRef, isOver, active } = useDroppable({
+  const { active: dndActive } = useDndContext();
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+    isOver,
+  } = useSortable({
     id: session.id,
+    data: { type: "session", session },
     disabled: viewMode !== "library",
   });
-  // Highlight only when a tab from a *different* group is hovering over this one.
-  const isDropTarget =
-    isOver && (active?.data.current?.fromSessionId as string | undefined) !== session.id;
+
+  const isSessionDrag = dndActive?.data.current?.type === "session";
+
+  // Only apply positional transform during session-level reorder drags;
+  // ignore it when a tab is being dragged so sessions don't shift around.
+  const sortStyle: React.CSSProperties = isSessionDrag
+    ? { transform: CSS.Transform.toString(transform), transition }
+    : {};
+
+  // Tab-drop highlight: a tab from a different group is hovering over this card.
+  const isTabDropTarget =
+    isOver &&
+    !isSessionDrag &&
+    (dndActive?.data.current?.fromSessionId as string | undefined) !== session.id;
+
+  // Reorder highlight: a different session card is being dragged over this one.
+  const isReorderTarget = isOver && isSessionDrag && dndActive?.id !== session.id;
 
   return (
     <motion.article
       ref={setNodeRef}
+      style={sortStyle}
       initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
+      animate={{ opacity: isDragging ? 0 : 1, y: 0 }}
       exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.82, x: 24, transition: { duration: 0.2, ease: [0.4, 0, 1, 1] } }}
-      whileHover={reduceMotion ? undefined : { y: -3, transition: { type: "spring", stiffness: 420, damping: 26 } }}
+      whileHover={reduceMotion || isDragging ? undefined : { y: -3, transition: { type: "spring", stiffness: 420, damping: 26 } }}
       whileTap={reduceMotion ? undefined : { scale: 0.992 }}
       transition={{
         duration: 0.22,
@@ -670,7 +760,8 @@ function SessionCard({
       className={cn(
         // Accent spine is an inset box-shadow so it follows the rounded edge the full height (no corner clipping)
         "group relative overflow-hidden rounded-[var(--radius-card)] border bg-surface shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-sm)] transition-[box-shadow,border-color,background-color] duration-[var(--dur-base)] hover:border-border-strong hover:shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-md)]",
-        isDropTarget ? "border-accent bg-accent/[0.05] ring-2 ring-accent/55" : "border-border",
+        isTabDropTarget ? "border-accent bg-accent/[0.05] ring-2 ring-accent/55" : "border-border",
+        isReorderTarget && "ring-2 ring-border-strong border-border-strong",
         isFresh && "ring-2 ring-accent/30",
       )}
     >
@@ -679,15 +770,19 @@ function SessionCard({
         "flex items-start gap-3 pl-4 pr-3",
         compactMode ? "py-3" : "py-5",
       )}>
-        {/* Expand button — just the chevron, small, top-left */}
+        {/* Expand button — also the drag handle in library view */}
         <motion.button
+          {...(viewMode === "library" ? { ...attributes, ...listeners } : {})}
           type="button"
           aria-label={isExpanded ? "Collapse" : "Expand"}
           onClick={() => onToggleExpanded(session.id)}
           whileHover={{ scale: 1.15 }}
           whileTap={{ scale: 0.88 }}
           transition={{ type: "spring", stiffness: 500, damping: 22 }}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/50 bg-surface-subtle text-muted shadow-[var(--shadow-xs)] transition-all duration-[var(--dur-fast)] hover:border-border-strong hover:bg-control-hover hover:text-ink hover:shadow-[var(--shadow-sm)]"
+          className={cn(
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/50 bg-surface-subtle text-muted shadow-[var(--shadow-xs)] transition-all duration-[var(--dur-fast)] hover:border-border-strong hover:bg-control-hover hover:text-ink hover:shadow-[var(--shadow-sm)]",
+            viewMode === "library" && "touch-none cursor-grab active:cursor-grabbing",
+          )}
         >
           <motion.span
             animate={{ rotate: isExpanded ? 90 : 0 }}
@@ -782,12 +877,14 @@ function SessionCard({
               icon={<Undo2 size={16} />}
               onClick={() => void onRestoreDeleted(session.id)}
             />
-          ) : (
+          ) : session.tabs.length > 0 ? (
             <RestoreButton
               label="Restore tabs"
               icon={<RotateCcw size={16} />}
               onClick={() => void onRestoreAll(session)}
             />
+          ) : (
+            <div className="h-9 w-9" />
           )}
         </div>
       </div>
@@ -803,16 +900,22 @@ function SessionCard({
             transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
             className="m-0 list-none overflow-hidden border-t border-border p-1.5"
           >
-            {session.tabs.map((tab) => (
-              <TabRow
-                key={tab.id}
-                tab={tab}
-                sessionId={session.id}
-                viewMode={viewMode}
-                onRestoreTab={onRestoreTab}
-                onRemoveTab={onRemoveTab}
-              />
-            ))}
+            {session.tabs.length === 0 ? (
+              <li className="flex items-center justify-center py-4 font-body text-[12px] text-muted-2">
+                Drop tabs here to add them
+              </li>
+            ) : (
+              session.tabs.map((tab) => (
+                <TabRow
+                  key={tab.id}
+                  tab={tab}
+                  sessionId={session.id}
+                  viewMode={viewMode}
+                  onRestoreTab={onRestoreTab}
+                  onRemoveTab={onRemoveTab}
+                />
+              ))
+            )}
           </motion.ul>
         )}
       </AnimatePresence>
@@ -1102,6 +1205,36 @@ function SaveBurstAnim({ burst, reduceMotion }: { burst: SaveBurst; reduceMotion
         ))}
       </div>
     </motion.div>
+  );
+}
+
+/* ── Full-card ghost shown in DragOverlay while dragging a session ─ */
+function SessionCardGhost({ session }: { session: StashSession }) {
+  return (
+    <div
+      className="w-[368px] overflow-hidden rounded-[var(--radius-card)] border border-accent/25 bg-surface shadow-[inset_4px_0_0_0_var(--color-accent),0_24px_48px_-8px_rgba(0,0,0,0.28),0_8px_16px_-4px_rgba(0,0,0,0.12)]"
+      style={{ transform: "rotate(-0.8deg) scale(1.025)" }}
+    >
+      <div className="flex items-start gap-3 px-4 py-5">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/50 bg-surface-subtle text-muted shadow-[var(--shadow-xs)]">
+          <ChevronRight size={16} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <span className="font-display display-title block pl-2 text-[17px] font-semibold leading-snug text-ink line-clamp-1">
+            {session.name}
+          </span>
+          <div className="mt-2 flex items-center gap-2">
+            <FaviconSpine tabs={session.tabs} isRestoring={false} reduceMotion={true} />
+            <span className="inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 font-mono text-[11px] text-muted-2">
+              {session.tabs.length}&nbsp;{session.tabs.length === 1 ? "tab" : "tabs"}
+            </span>
+            <span className="inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 font-mono text-[11px] text-muted-2 whitespace-nowrap">
+              {new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(session.createdAt))}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

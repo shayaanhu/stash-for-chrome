@@ -48,6 +48,23 @@ export function sortSessionsNewestFirst(sessions: StashSession[]) {
   return [...sessions].sort((a, b) => b.createdAt - a.createdAt);
 }
 
+/** Sort sessions by a persisted order array. Sessions not in the array fall back
+ *  to newest-first. Trash sessions always sort by deletion time regardless of order. */
+export function applySessionOrder(sessions: StashSession[], order: string[]): StashSession[] {
+  const orderMap = new Map(order.map((id, i) => [id, i]));
+  return [...sessions].sort((a, b) => {
+    if (a.deletedAt && b.deletedAt) return b.deletedAt - a.deletedAt;
+    if (a.deletedAt) return 1;
+    if (b.deletedAt) return -1;
+    const aIdx = orderMap.get(a.id);
+    const bIdx = orderMap.get(b.id);
+    if (aIdx !== undefined && bIdx !== undefined) return aIdx - bIdx;
+    if (aIdx !== undefined) return -1;
+    if (bIdx !== undefined) return 1;
+    return b.createdAt - a.createdAt;
+  });
+}
+
 export function matchesSession(session: StashSession, query: string) {
   const normalizedQuery = query.trim().toLowerCase();
 

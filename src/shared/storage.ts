@@ -3,6 +3,7 @@ import type { SaveTarget, StashSession, StashSettings, StashTab } from "./types"
 const SESSIONS_KEY = "stash.sessions";
 const SETTINGS_KEY = "stash.settings";
 const META_KEY = "stash.meta";
+const SESSION_ORDER_KEY = "stash.session-order";
 
 /** Bump when the stored shape changes; add a matching entry to `migrations`. */
 export const SCHEMA_VERSION = 1;
@@ -89,9 +90,10 @@ function normalizeSession(raw: unknown): StashSession | null {
     : [];
 
   const deletedAt = typeof raw.deletedAt === "number" ? raw.deletedAt : undefined;
+  const manuallyCreated = raw.manuallyCreated === true;
 
-  // A non-trash session with no usable tabs is junk; drop it.
-  if (tabs.length === 0 && deletedAt === undefined) return null;
+  // A non-trash session with no usable tabs is junk unless manually created.
+  if (tabs.length === 0 && deletedAt === undefined && !manuallyCreated) return null;
 
   const id = typeof raw.id === "string" && raw.id ? raw.id : crypto.randomUUID();
   const createdAt = typeof raw.createdAt === "number" ? raw.createdAt : Date.now();
@@ -99,6 +101,7 @@ function normalizeSession(raw: unknown): StashSession | null {
 
   const session: StashSession = { id, name, createdAt, tabs };
   if (deletedAt !== undefined) session.deletedAt = deletedAt;
+  if (manuallyCreated) session.manuallyCreated = true;
   if (Array.isArray(raw.tags)) session.tags = raw.tags.filter((t): t is string => typeof t === "string");
   return session;
 }
@@ -280,6 +283,17 @@ export function purgeExpiredTrash(): Promise<number> {
     const next = sessions.filter((s) => !isExpiredTrash(s, now));
     return { next, result: sessions.length - next.length };
   });
+}
+
+// ── Session order ─────────────────────────────────────────────────────────────
+export async function getSessionOrder(): Promise<string[]> {
+  const items = await getRaw([SESSION_ORDER_KEY]);
+  const order = items[SESSION_ORDER_KEY];
+  return Array.isArray(order) ? order.filter((id): id is string => typeof id === "string") : [];
+}
+
+export async function setSessionOrder(ids: string[]): Promise<void> {
+  await setRaw({ [SESSION_ORDER_KEY]: ids });
 }
 
 // ── Settings ──────────────────────────────────────────────────────────────────

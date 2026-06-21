@@ -6,16 +6,18 @@ import {
   emptyTrash,
   ensureMeta,
   getSessions,
+  getSessionOrder,
   getSettings,
   moveTab,
   purgeExpiredTrash,
   removeTabFromSession,
   restoreDeletedSession,
+  setSessionOrder,
   softDeleteSession,
   updateSessionName,
   updateSettings,
 } from "../src/shared/storage";
-import type { RestoreSummary, SaveTarget } from "../src/shared/types";
+import type { RestoreSummary, SaveTarget, StashSession } from "../src/shared/types";
 import {
   createSessionFromChromeTabs,
   isSavableChromeTab,
@@ -131,6 +133,22 @@ async function handleRequest(request: BackgroundRequest): Promise<BackgroundResp
       }
       case "UPDATE_SETTINGS":
         return { ok: true, settings: await updateSettings(request.settings) };
+      case "CREATE_EMPTY_SESSION": {
+        const session: StashSession = {
+          id: crypto.randomUUID(),
+          name: "New group",
+          createdAt: Date.now(),
+          tabs: [],
+          manuallyCreated: true,
+        };
+        await addSession(session);
+        const order = await getSessionOrder();
+        await setSessionOrder([session.id, ...order]);
+        return { ok: true, session };
+      }
+      case "REORDER_SESSIONS":
+        await setSessionOrder(request.order);
+        return { ok: true };
       default:
         return { ok: false, error: "Unknown Stash request." };
     }
@@ -150,6 +168,8 @@ async function saveTabs(target: SaveTarget) {
 
   const session = createSessionFromChromeTabs(tabsToSave);
   await addSession(session);
+  const order = await getSessionOrder();
+  await setSessionOrder([session.id, ...order]);
   flashSavedBadge();
   // Close tabs as best-effort cleanup AFTER the save is safely stored: the popup
   // gets its confirmation without waiting on the window to clear, and a close
@@ -174,6 +194,8 @@ async function saveCurrentTab(tabId?: number) {
 
   const session = createSessionFromChromeTabs([tab]);
   await addSession(session);
+  const order = await getSessionOrder();
+  await setSessionOrder([session.id, ...order]);
   flashSavedBadge();
   void closeTabsSafely([tab]).catch(() => undefined);
   return session;

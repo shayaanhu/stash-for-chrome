@@ -22,6 +22,7 @@ export type StashSession = {
   tags?: string[];
   archived?: boolean;
   deletedAt?: number;
+  manuallyCreated?: boolean;
 };
 
 /** Outcome of a restore: how many tabs opened, how many failed, and why. */

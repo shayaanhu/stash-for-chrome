@@ -14,7 +14,9 @@ export type BackgroundRequest =
   | { type: "MOVE_TAB"; fromSessionId: string; toSessionId: string; tabId: string }
   | { type: "ADD_SESSIONS"; sessions: StashSession[] }
   | { type: "UNDO_RESTORE_SESSION"; sessions: StashSession[] }
-  | { type: "UPDATE_SETTINGS"; settings: Partial<StashSettings> };
+  | { type: "UPDATE_SETTINGS"; settings: Partial<StashSettings> }
+  | { type: "CREATE_EMPTY_SESSION" }
+  | { type: "REORDER_SESSIONS"; order: string[] };
 
 export type BackgroundResponse =
   | {

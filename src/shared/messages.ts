@@ -16,7 +16,8 @@ export type BackgroundRequest =
   | { type: "UNDO_RESTORE_SESSION"; sessions: StashSession[] }
   | { type: "UPDATE_SETTINGS"; settings: Partial<StashSettings> }
   | { type: "CREATE_EMPTY_SESSION" }
-  | { type: "REORDER_SESSIONS"; order: string[] };
+  | { type: "REORDER_SESSIONS"; order: string[] }
+  | { type: "ADD_OPEN_TAB_TO_SESSION"; sessionId: string; tabId: number };
 
 export type BackgroundResponse =
   | {

@@ -2,6 +2,7 @@ import { defineBackground } from "wxt/utils/define-background";
 import {
   addSession,
   addSessions,
+  addTabToSession,
   deleteSessionForever,
   emptyTrash,
   ensureMeta,
@@ -20,6 +21,7 @@ import {
 import type { RestoreSummary, SaveTarget, StashSession } from "../src/shared/types";
 import {
   createSessionFromChromeTabs,
+  createStashTab,
   isSavableChromeTab,
   isTabPinned,
 } from "../src/shared/session-utils";
@@ -31,10 +33,20 @@ const TRASH_PURGE_PERIOD_MINUTES = 6 * 60;
 export default defineBackground(() => {
   // Rebuild menus on every worker start too, not just install — so a reload or
   // an updated set of items always takes effect without a full reinstall.
-  setupContextMenus();
+  void setupContextMenus();
+
+  // Rebuild context menus whenever sessions change so "Add to group" submenu stays fresh.
+  let menuRebuildTimer: ReturnType<typeof setTimeout> | null = null;
+  chrome.storage.onChanged.addListener(() => {
+    if (menuRebuildTimer) clearTimeout(menuRebuildTimer);
+    menuRebuildTimer = setTimeout(() => {
+      menuRebuildTimer = null;
+      void setupContextMenus();
+    }, 1000);
+  });
 
   chrome.runtime.onInstalled.addListener((details) => {
-    setupContextMenus();
+    void setupContextMenus();
 
     void ensureMeta();
     chrome.alarms.create(TRASH_PURGE_ALARM, { periodInMinutes: TRASH_PURGE_PERIOD_MINUTES });
@@ -59,10 +71,14 @@ export default defineBackground(() => {
   });
 
   chrome.contextMenus.onClicked.addListener((info, tab) => {
-    if (info.menuItemId === "stash-current-tab") {
+    const itemId = String(info.menuItemId);
+    if (itemId === "stash-current-tab") {
       void saveCurrentTab(tab?.id);
-    } else if (info.menuItemId === "stash-all-tabs") {
+    } else if (itemId === "stash-all-tabs") {
       void getSettings().then((settings) => saveTabs(settings.saveTarget));
+    } else if (itemId.startsWith("stash-tab-to-group-")) {
+      const sessionId = itemId.slice("stash-tab-to-group-".length);
+      void addCurrentTabToSession(tab?.id, sessionId);
     }
   });
 
@@ -73,24 +89,51 @@ export default defineBackground(() => {
 });
 
 // ── Context menus ───────────────────────────────────────────────────────────────
-/** Wipe then rebuild so re-runs never collide on duplicate IDs. */
-function setupContextMenus() {
-  chrome.contextMenus.removeAll(() => {
-    void chrome.runtime.lastError; // ignore "nothing to remove" on first run
-    // Chrome can't add items to the tab strip, so these live on the page menu.
-    // The first item saves the current tab selection: right-click after
-    // shift/ctrl-picking tabs and it saves all of them at once.
-    chrome.contextMenus.create({
-      id: "stash-current-tab",
-      title: "Save this tab to Stash",
-      contexts: ["page"],
-    });
-    chrome.contextMenus.create({
-      id: "stash-all-tabs",
-      title: "Save all tabs in this window to Stash",
-      contexts: ["page"],
+// Serialize all rebuild calls — concurrent calls (e.g. onInstalled + top-level
+// startup) would otherwise both complete removeAll before either creates items,
+// causing "duplicate id" errors.
+let _menuChain: Promise<void> = Promise.resolve();
+
+function setupContextMenus(): Promise<void> {
+  _menuChain = _menuChain.then(doSetupContextMenus).catch(() => {});
+  return _menuChain;
+}
+
+async function doSetupContextMenus(): Promise<void> {
+  const sessions = await getSessions().catch(() => []);
+  const active = sessions.filter((s) => !s.deletedAt).slice(0, 15);
+
+  await new Promise<void>((resolve) => {
+    chrome.contextMenus.removeAll(() => {
+      void chrome.runtime.lastError;
+      resolve();
     });
   });
+
+  // Don't combine "all" with "tab" — Chrome drops "tab" silently when mixed.
+  // Explicit list covers every page context plus the tab-strip (Chrome 116+).
+  const ctx: chrome.contextMenus.ContextType[] = [
+    "page", "frame", "selection", "link", "editable", "image", "video", "audio", "tab",
+  ];
+
+  const ack = () => { void chrome.runtime.lastError; };
+
+  chrome.contextMenus.create({ id: "stash-current-tab", title: "Stash this tab", contexts: ctx }, ack);
+
+  if (active.length > 0) {
+    chrome.contextMenus.create({ id: "stash-tab-to-group", title: "Add this tab to a group", contexts: ctx }, ack);
+    for (const session of active) {
+      const title = session.name.length > 40 ? `${session.name.slice(0, 37)}…` : session.name;
+      chrome.contextMenus.create({
+        id: `stash-tab-to-group-${session.id}`,
+        parentId: "stash-tab-to-group",
+        title,
+        contexts: ctx,
+      }, ack);
+    }
+  }
+
+  chrome.contextMenus.create({ id: "stash-all-tabs", title: "Stash all tabs in this window", contexts: ctx }, ack);
 }
 
 async function handleRequest(request: BackgroundRequest): Promise<BackgroundResponse> {
@@ -149,12 +192,36 @@ async function handleRequest(request: BackgroundRequest): Promise<BackgroundResp
       case "REORDER_SESSIONS":
         await setSessionOrder(request.order);
         return { ok: true };
+      case "ADD_OPEN_TAB_TO_SESSION": {
+        const chromeTab = await getTab(request.tabId);
+        if (!isSavableChromeTab(chromeTab)) throw new Error("This tab cannot be stashed.");
+        const stashTab = createStashTab(chromeTab);
+        const session = await addTabToSession(request.sessionId, stashTab);
+        flashSavedBadge();
+        void closeTabsSafely([chromeTab]).catch(() => undefined);
+        return { ok: true, session };
+      }
       default:
         return { ok: false, error: "Unknown Stash request." };
     }
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Something went wrong." };
   }
+}
+
+// ── Add single tab to an existing session (context menu) ─────────────────────
+async function addCurrentTabToSession(tabId: number | undefined, sessionId: string) {
+  if (!tabId) {
+    const tabs = await queryTabs({ active: true, lastFocusedWindow: true });
+    tabId = tabs[0]?.id;
+  }
+  if (!tabId) return;
+  const chromeTab = await getTab(tabId);
+  if (!isSavableChromeTab(chromeTab)) return;
+  const stashTab = createStashTab(chromeTab);
+  await addTabToSession(sessionId, stashTab);
+  flashSavedBadge();
+  void closeTabsSafely([chromeTab]).catch(() => undefined);
 }
 
 // ── Capture ───────────────────────────────────────────────────────────────────

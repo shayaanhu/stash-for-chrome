@@ -243,6 +243,17 @@ export function moveTab(
   });
 }
 
+export function addTabToSession(sessionId: string, tab: StashTab): Promise<StashSession | undefined> {
+  return mutate((sessions) => {
+    const next = sessions.map((s) => {
+      if (s.id !== sessionId) return s;
+      if (s.tabs.some((t) => t.url === tab.url)) return s; // dedup by URL
+      return { ...s, tabs: [...s.tabs, tab] };
+    });
+    return { next, result: next.find((s) => s.id === sessionId) };
+  });
+}
+
 export function softDeleteSession(sessionId: string): Promise<StashSession | undefined> {
   const now = Date.now();
   return mutate((sessions) => {

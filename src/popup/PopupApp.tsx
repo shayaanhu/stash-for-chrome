@@ -56,6 +56,11 @@ import type { SaveTarget, StashSession, StashTab } from "../shared/types";
 type ViewMode = "library" | "trash";
 type SaveBurst = { id: string; tabs: StashTab[] };
 
+function isSavableChromeTabUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  return url.startsWith("http://") || url.startsWith("https://") || url.startsWith("file://");
+}
+
 export function PopupApp() {
   const reduceMotion = useReducedMotion();
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -75,6 +80,8 @@ export function PopupApp() {
   const [restoreBurstId, setRestoreBurstId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<StashTab | null>(null);
   const [activeSession, setActiveSession] = useState<StashSession | null>(null);
+  const [openTabs, setOpenTabs] = useState<chrome.tabs.Tab[]>([]);
+  const [openTabsExpanded, setOpenTabsExpanded] = useState(false);
 
   // A small activation distance lets a plain click still restore a tab — only a
   // deliberate drag (>6px) starts moving it.
@@ -106,6 +113,24 @@ export function PopupApp() {
       if (reloadTimer.current) clearTimeout(reloadTimer.current);
     };
   }, [reload]);
+
+  const loadOpenTabs = useCallback(async () => {
+    const tabs = await chrome.tabs.query({ currentWindow: true });
+    setOpenTabs(tabs.filter((t) => isSavableChromeTabUrl(t.url)));
+  }, []);
+
+  useEffect(() => {
+    void loadOpenTabs();
+    const onTabUpdate = () => void loadOpenTabs();
+    chrome.tabs.onUpdated.addListener(onTabUpdate);
+    chrome.tabs.onRemoved.addListener(onTabUpdate);
+    chrome.tabs.onCreated.addListener(onTabUpdate);
+    return () => {
+      chrome.tabs.onUpdated.removeListener(onTabUpdate);
+      chrome.tabs.onRemoved.removeListener(onTabUpdate);
+      chrome.tabs.onCreated.removeListener(onTabUpdate);
+    };
+  }, [loadOpenTabs]);
 
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
@@ -193,6 +218,7 @@ export function PopupApp() {
     if (type === "session") {
       setActiveSession((event.active.data.current?.session as StashSession | undefined) ?? null);
     } else {
+      // both "tab" and "open-tab" show a tab drag preview
       setActiveTab((event.active.data.current?.tab as StashTab | undefined) ?? null);
     }
   }
@@ -213,6 +239,31 @@ export function PopupApp() {
         void sendBackgroundRequest({ type: "REORDER_SESSIONS", order: next.map((s) => s.id) });
         return next;
       });
+    } else if (type === "open-tab") {
+      setActiveTab(null);
+      if (!over) return;
+      const toSessionId = String(over.id);
+      const chromeTabId = active.data.current?.chromeTabId as number | undefined;
+      const tab = active.data.current?.tab as StashTab | undefined;
+      if (!chromeTabId || !tab) return;
+
+      // Remove from open tabs panel immediately.
+      setOpenTabs((prev) => prev.filter((t) => t.id !== chromeTabId));
+
+      const response = await sendBackgroundRequest({
+        type: "ADD_OPEN_TAB_TO_SESSION",
+        sessionId: toSessionId,
+        tabId: chromeTabId,
+      });
+      if (!response.ok) {
+        toast.error(response.error);
+        void loadOpenTabs();
+      } else {
+        const target = sessions.find((s) => s.id === toSessionId);
+        toast.success(`Tab stashed in "${target?.name ?? "group"}".`, {
+          action: { label: "Undo", onClick: () => void reload() },
+        });
+      }
     } else {
       setActiveTab(null);
       if (!over) return;
@@ -531,73 +582,115 @@ export function PopupApp() {
                     </div>
                   )}
 
-                  {viewMode === "library" && (
-                    <div className="mb-2 flex justify-end">
-                      <motion.button
-                        type="button"
-                        onClick={() => void handleCreateEmptyGroup()}
-                        whileHover={{ y: -1 }}
-                        whileTap={{ scale: 0.95, y: 0 }}
-                        transition={{ type: "spring", stiffness: 480, damping: 26 }}
-                        className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 font-body text-[12px] font-medium text-muted shadow-[var(--shadow-sm)] transition-[box-shadow,color] duration-[var(--dur-fast)] hover:text-ink hover:shadow-[var(--shadow-md)]"
-                      >
-                        <Plus size={12} />
-                        New group
-                      </motion.button>
-                    </div>
-                  )}
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragStart={onDragStart}
+                    onDragEnd={onDragEnd}
+                    onDragCancel={() => { setActiveTab(null); setActiveSession(null); }}
+                  >
+                    {viewMode === "library" && (
+                      <div className="mb-2 flex items-center justify-between">
+                        {openTabs.length > 0 ? (
+                          <motion.button
+                            type="button"
+                            onClick={() => setOpenTabsExpanded((v) => !v)}
+                            whileHover={{ y: -1 }}
+                            whileTap={{ scale: 0.95, y: 0 }}
+                            transition={{ type: "spring", stiffness: 480, damping: 26 }}
+                            className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 font-body text-[12px] font-medium text-muted shadow-[var(--shadow-sm)] transition-[box-shadow,color] duration-[var(--dur-fast)] hover:text-ink hover:shadow-[var(--shadow-md)]"
+                          >
+                            <motion.span
+                              animate={{ rotate: openTabsExpanded ? 90 : 0 }}
+                              transition={{ type: "spring", stiffness: 400, damping: 24 }}
+                              className="inline-flex"
+                            >
+                              <ChevronRight size={12} />
+                            </motion.span>
+                            Open tabs
+                            <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent/15 px-1 font-mono text-[10px] font-semibold text-accent-text">
+                              {openTabs.length}
+                            </span>
+                          </motion.button>
+                        ) : <div />}
+                        <motion.button
+                          type="button"
+                          onClick={() => void handleCreateEmptyGroup()}
+                          whileHover={{ y: -1 }}
+                          whileTap={{ scale: 0.95, y: 0 }}
+                          transition={{ type: "spring", stiffness: 480, damping: 26 }}
+                          className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 font-body text-[12px] font-medium text-muted shadow-[var(--shadow-sm)] transition-[box-shadow,color] duration-[var(--dur-fast)] hover:text-ink hover:shadow-[var(--shadow-md)]"
+                        >
+                          <Plus size={12} />
+                          New group
+                        </motion.button>
+                      </div>
+                    )}
 
-                  {visibleSessions.length > 0 ? (
-                    <DndContext
-                      sensors={sensors}
-                      collisionDetection={closestCenter}
-                      onDragStart={onDragStart}
-                      onDragEnd={onDragEnd}
-                      onDragCancel={() => { setActiveTab(null); setActiveSession(null); }}
-                    >
+                    <AnimatePresence initial={false}>
+                      {viewMode === "library" && openTabsExpanded && openTabs.length > 0 && (
+                        <motion.div
+                          key="open-tabs-panel"
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
+                          className="mb-3 overflow-hidden"
+                        >
+                          <OpenTabsPanel tabs={openTabs} />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {visibleSessions.length > 0 ? (
                       <SortableContext
                         items={visibleSessions.map((s) => s.id)}
                         strategy={verticalListSortingStrategy}
                       >
-                      <SessionList
-                        sessions={visibleSessions}
-                        expandedIds={expandedIds}
-                        editingId={editingId}
-                        draftName={draftName}
-                        viewMode={viewMode}
-                        freshlySavedId={freshlySavedId}
-                        restoreBurstId={restoreBurstId}
-                        compactMode={compactMode}
-                        reduceMotion={Boolean(reduceMotion)}
-                        onDraftNameChange={(name) => {
-                          setDraftName(name);
-                          setSessions((prev) =>
-                            prev.map((s) => (s.id === editingId ? { ...s, name } : s))
-                          );
-                        }}
-                        onToggleExpanded={toggleExpanded}
-                        onRenameStart={startRename}
-                        onRenameSubmit={submitRename}
-                        onRenameKeyDown={handleRenameKeyDown}
-                        onRestoreAll={handleRestoreAll}
-                        onRestoreTab={handleRestoreTab}
-                        onDeleteSession={handleDeleteSession}
-                        onDeleteForever={handleDeleteForever}
-                        onRestoreDeleted={handleRestoreDeleted}
-                        onRemoveTab={handleRemoveTab}
-                      />
+                        <SessionList
+                          sessions={visibleSessions}
+                          expandedIds={expandedIds}
+                          editingId={editingId}
+                          draftName={draftName}
+                          viewMode={viewMode}
+                          freshlySavedId={freshlySavedId}
+                          restoreBurstId={restoreBurstId}
+                          compactMode={compactMode}
+                          reduceMotion={Boolean(reduceMotion)}
+                          onDraftNameChange={(name) => {
+                            setDraftName(name);
+                            setSessions((prev) =>
+                              prev.map((s) => (s.id === editingId ? { ...s, name } : s))
+                            );
+                          }}
+                          onToggleExpanded={toggleExpanded}
+                          onRenameStart={startRename}
+                          onRenameSubmit={submitRename}
+                          onRenameKeyDown={handleRenameKeyDown}
+                          onRestoreAll={handleRestoreAll}
+                          onRestoreTab={handleRestoreTab}
+                          onDeleteSession={handleDeleteSession}
+                          onDeleteForever={handleDeleteForever}
+                          onRestoreDeleted={handleRestoreDeleted}
+                          onRemoveTab={handleRemoveTab}
+                        />
                       </SortableContext>
-                      <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }}>
-                        {activeTab ? <TabDragPreview tab={activeTab} /> : activeSession ? <SessionCardGhost session={activeSession} /> : null}
-                      </DragOverlay>
-                    </DndContext>
-                  ) : (
-                    <EmptyState
-                      viewMode={viewMode}
-                      query={query}
-                      reduceMotion={Boolean(reduceMotion)}
-                    />
-                  )}
+                    ) : (
+                      <EmptyState
+                        viewMode={viewMode}
+                        query={query}
+                        reduceMotion={Boolean(reduceMotion)}
+                      />
+                    )}
+
+                    <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }}>
+                      {activeTab
+                        ? <TabDragPreview tab={activeTab} />
+                        : activeSession
+                        ? <SessionCardGhost session={activeSession} />
+                        : null}
+                    </DragOverlay>
+                  </DndContext>
                 </TabsContent>
               </motion.div>
             </AnimatePresence>
@@ -967,6 +1060,62 @@ function TabRow({
           <Trash2 size={13} />
         </ActionBtn>
       )}
+    </li>
+  );
+}
+
+/* ── Open tabs panel — drag source for stashing into groups ────── */
+function OpenTabsPanel({ tabs }: { tabs: chrome.tabs.Tab[] }) {
+  return (
+    <div className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-sm)]">
+      <ul className="m-0 max-h-[176px] list-none overflow-y-auto p-1.5">
+        {tabs.map((tab) => (
+          <OpenTabRow key={tab.id} chromeTab={tab} />
+        ))}
+      </ul>
+      <div className="border-t border-border/60 px-3 py-2">
+        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-2">
+          Drag a tab onto a group to stash it there
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function OpenTabRow({ chromeTab }: { chromeTab: chrome.tabs.Tab }) {
+  const stashTab = useMemo<StashTab>(
+    () => ({
+      id: `client-${chromeTab.id}`,
+      url: chromeTab.url ?? "",
+      title: chromeTab.title?.trim() || chromeTab.url || "Untitled",
+      favicon: chromeTab.favIconUrl ?? "",
+      capturedAt: Date.now(),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [chromeTab.id, chromeTab.url, chromeTab.title, chromeTab.favIconUrl],
+  );
+
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `open-tab-${chromeTab.id}`,
+    data: { type: "open-tab", chromeTabId: chromeTab.id, tab: stashTab },
+  });
+
+  return (
+    <li
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      className={cn(
+        "group/ot flex min-h-[36px] touch-none cursor-grab items-center gap-2 rounded-[8px] px-2.5 py-1 transition-colors hover:bg-surface-subtle active:cursor-grabbing",
+        isDragging && "opacity-40",
+      )}
+    >
+      <Favicon tab={stashTab} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13px] font-medium text-ink">{stashTab.title}</span>
+        <span className="block truncate font-mono text-[11px] text-muted-2">{formatUrl(stashTab.url)}</span>
+      </span>
+      <GripVertical size={12} className="shrink-0 text-muted-2/40 transition-opacity group-hover/ot:text-muted-2" />
     </li>
   );
 }

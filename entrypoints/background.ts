@@ -21,6 +21,7 @@ import {
 } from "../src/shared/storage";
 import type { RestoreSummary, SaveTarget, StashSession } from "../src/shared/types";
 import {
+  autoNameSession,
   createSessionFromChromeTabs,
   createStashTab,
   isSavableChromeTab,
@@ -209,6 +210,35 @@ async function handleRequest(request: BackgroundRequest): Promise<BackgroundResp
         const session = await addTabToSession(request.sessionId, stashTab);
         flashSavedBadge();
         void closeTabsSafely([chromeTab]).catch(() => undefined);
+        return { ok: true, session };
+      }
+      case "STASH_SELECTED_TABS": {
+        const chromeTabs = await getSavableTabs(request.tabIds);
+        if (chromeTabs.length === 0) throw new Error("None of the selected tabs can be stashed.");
+        const stashTabs = chromeTabs.map(createStashTab);
+        const now = Date.now();
+        const session: StashSession = {
+          id: crypto.randomUUID(),
+          name: request.name?.trim() || autoNameSession(stashTabs, now),
+          createdAt: now,
+          tabs: stashTabs,
+        };
+        await addSession(session);
+        const order = await getSessionOrder();
+        await setSessionOrder([session.id, ...order]);
+        flashSavedBadge();
+        if (request.closeAfter) void closeTabsSafely(chromeTabs).catch(() => undefined);
+        return { ok: true, session };
+      }
+      case "ADD_SELECTED_TABS_TO_SESSION": {
+        const chromeTabs = await getSavableTabs(request.tabIds);
+        if (chromeTabs.length === 0) throw new Error("None of the selected tabs can be stashed.");
+        let session: StashSession | undefined;
+        for (const chromeTab of chromeTabs) {
+          session = await addTabToSession(request.sessionId, createStashTab(chromeTab));
+        }
+        flashSavedBadge();
+        if (request.closeAfter) void closeTabsSafely(chromeTabs).catch(() => undefined);
         return { ok: true, session };
       }
       case "CREATE_GROUP_FROM_OPEN_TAB": {
@@ -416,6 +446,17 @@ function getTab(tabId: number): Promise<chrome.tabs.Tab> {
       else resolve(tab);
     });
   });
+}
+
+// Resolve a list of tab ids to the subset that still exist and can be stashed,
+// preserving the caller's order.
+async function getSavableTabs(tabIds: number[]): Promise<chrome.tabs.Tab[]> {
+  const resolved = await Promise.all(
+    tabIds.map((id) => getTab(id).catch(() => null)),
+  );
+  return resolved.filter(
+    (tab): tab is chrome.tabs.Tab => tab !== null && isSavableChromeTab(tab),
+  );
 }
 
 async function createTab(url: string): Promise<void> {

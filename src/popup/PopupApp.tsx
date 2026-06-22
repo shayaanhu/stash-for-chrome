@@ -5,6 +5,8 @@ import {
   ChevronRight,
   ExternalLink,
   GripVertical,
+  Layers,
+  LayoutGrid,
   Loader2,
   PanelTopClose,
   Pencil,
@@ -44,6 +46,7 @@ import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "motion/r
 import type { FormEvent, KeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { PopupSettings } from "./PopupSettings";
 import { EmptyPreview } from "../components/empty/EmptyPreview";
 import { TrashEmpty } from "../components/empty/TrashEmpty";
 import { Button } from "../components/ui/button";
@@ -57,7 +60,10 @@ import { getSessions, getSessionOrder, getSettings } from "../shared/storage";
 import { applySessionOrder, matchesSession, autoNameSession } from "../shared/session-utils";
 import type { SaveTarget, StashSession, StashTab } from "../shared/types";
 
+// The Stash list still reasons in terms of "library" vs "trash"; the top-level
+// nav is "open" (live tabs) vs "stash" (saved collection), with trash a sub-view.
 type ViewMode = "library" | "trash";
+type TopView = "open" | "stash";
 type SaveBurst = { id: string; tabs: StashTab[] };
 
 function isSavableChromeTabUrl(url: string | undefined): boolean {
@@ -72,7 +78,13 @@ export function PopupApp() {
   const [saveTarget, setSaveTarget] = useState<SaveTarget>("current-window");
   const [compactMode, setCompactMode] = useState(false);
   const [query, setQuery] = useState("");
-  const [viewMode, setViewMode] = useState<ViewMode>("library");
+  const [openFilter, setOpenFilter] = useState("");
+  const [topView, setTopView] = useState<TopView>("open");
+  const [showTrash, setShowTrash] = useState(false);
+  const [selectedTabIds, setSelectedTabIds] = useState<Set<number>>(new Set());
+  const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
+  const [showSettings, setShowSettings] = useState(false);
+  const listMode: ViewMode = showTrash ? "trash" : "library";
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
@@ -162,11 +174,30 @@ export function PopupApp() {
   const trashCount  = sessions.filter((s) =>  s.deletedAt).length;
 
   const visibleSessions = useMemo(() => {
-    const isTrash = viewMode === "trash";
     return sessions
-      .filter((s) => (isTrash ? Boolean(s.deletedAt) : !s.deletedAt))
+      .filter((s) => (showTrash ? Boolean(s.deletedAt) : !s.deletedAt))
       .filter((s) => matchesSession(s, query));
-  }, [sessions, query, viewMode]);
+  }, [sessions, query, showTrash]);
+
+  const filteredOpenTabs = useMemo(() => {
+    const q = openFilter.trim().toLowerCase();
+    if (!q) return openTabs;
+    return openTabs.filter(
+      (t) =>
+        (t.title ?? "").toLowerCase().includes(q) ||
+        (t.url ?? "").toLowerCase().includes(q),
+    );
+  }, [openTabs, openFilter]);
+
+  // Drop selections that point at tabs which have since closed.
+  useEffect(() => {
+    setSelectedTabIds((prev) => {
+      if (prev.size === 0) return prev;
+      const live = new Set(openTabs.map((t) => t.id));
+      const next = new Set([...prev].filter((id) => live.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [openTabs]);
 
   async function handleSaveTabs() {
     setIsSaving(true);
@@ -183,7 +214,8 @@ export function PopupApp() {
     setFreshlySavedId(saved.id);
     setJustSaved(true);
     setExpandedIds((cur) => new Set(cur).add(saved.id));
-    setViewMode("library");
+    setTopView("stash");
+    setShowTrash(false);
     await reload();
 
     setTimeout(() => setJustSaved(false),     reduceMotion ? 0 : 1400);
@@ -225,6 +257,143 @@ export function PopupApp() {
     setDraftName(session.name);
     setOriginalName(session.name);
     setExpandedIds((cur) => new Set(cur).add(session.id));
+  }
+
+  // ── Open Tabs selection ──────────────────────────────────────────────────────
+  function toggleTabSelected(tabId: number) {
+    setSelectedTabIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(tabId)) next.delete(tabId);
+      else next.add(tabId);
+      return next;
+    });
+  }
+
+  // Explicit set (used by drag-to-paint selection so a drag commits one value).
+  function setTabSelected(tabId: number, value: boolean) {
+    setSelectedTabIds((prev) => {
+      if (value === prev.has(tabId)) return prev;
+      const next = new Set(prev);
+      if (value) next.add(tabId);
+      else next.delete(tabId);
+      return next;
+    });
+  }
+
+  const filteredIds = useMemo(
+    () => filteredOpenTabs.map((t) => t.id).filter((id): id is number => id != null),
+    [filteredOpenTabs],
+  );
+  const allFilteredSelected =
+    filteredIds.length > 0 && filteredIds.every((id) => selectedTabIds.has(id));
+
+  function toggleSelectAll() {
+    setSelectedTabIds((prev) => {
+      if (allFilteredSelected) {
+        const next = new Set(prev);
+        filteredIds.forEach((id) => next.delete(id));
+        return next;
+      }
+      return new Set([...prev, ...filteredIds]);
+    });
+  }
+
+  async function handleStashSelected() {
+    const ids = [...selectedTabIds];
+    if (ids.length === 0) return;
+    setIsSaving(true);
+    const response = await sendBackgroundRequest({
+      type: "STASH_SELECTED_TABS",
+      tabIds: ids,
+      closeAfter: true,
+    });
+    setIsSaving(false);
+
+    if (!response.ok || !response.session) {
+      toast.error(response.ok ? "Nothing was stashed." : response.error);
+      return;
+    }
+
+    const saved = response.session;
+    setSelectedTabIds(new Set());
+    setSaveBurst({ id: saved.id, tabs: saved.tabs.slice(0, 4) });
+    setFreshlySavedId(saved.id);
+    setTopView("stash");
+    setShowTrash(false);
+    setExpandedIds((cur) => new Set(cur).add(saved.id));
+    await reload();
+    void loadOpenTabs();
+
+    setTimeout(() => setSaveBurst(null), reduceMotion ? 0 : 650);
+    setTimeout(() => setFreshlySavedId(null), reduceMotion ? 0 : 1800);
+    setTimeout(
+      () =>
+        toast.success(
+          `Stashed ${saved.tabs.length} ${saved.tabs.length === 1 ? "tab" : "tabs"}.`,
+          { action: { label: "Undo", onClick: () => void undoSave(saved) } },
+        ),
+      reduceMotion ? 0 : 520,
+    );
+  }
+
+  // ── Group (session) multi-select ─────────────────────────────────────────────
+  function toggleSessionSelected(id: string) {
+    setSelectedSessionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // Clear group selection when switching views so it never carries across modes.
+  useEffect(() => { setSelectedSessionIds(new Set()); }, [topView, showTrash]);
+
+  // Drop selections that point at sessions which no longer exist in this view.
+  useEffect(() => {
+    setSelectedSessionIds((prev) => {
+      if (prev.size === 0) return prev;
+      const live = new Set(visibleSessions.map((s) => s.id));
+      const next = new Set([...prev].filter((id) => live.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [visibleSessions]);
+
+  async function handleBulkRestore() {
+    const ids = [...selectedSessionIds];
+    if (ids.length === 0) return;
+    for (const id of ids) {
+      await sendBackgroundRequest(
+        showTrash
+          ? { type: "RESTORE_DELETED_SESSION", sessionId: id }
+          : { type: "RESTORE_SESSION", sessionId: id },
+      );
+    }
+    setSelectedSessionIds(new Set());
+    await reload();
+    toast.success(`Restored ${ids.length} ${ids.length === 1 ? "group" : "groups"}.`);
+  }
+
+  async function handleBulkRemove() {
+    const ids = [...selectedSessionIds];
+    if (ids.length === 0) return;
+    const removed = sessions.filter((s) => ids.includes(s.id));
+    for (const id of ids) {
+      await sendBackgroundRequest(
+        showTrash
+          ? { type: "DELETE_FOREVER", sessionId: id }
+          : { type: "SOFT_DELETE_SESSION", sessionId: id },
+      );
+    }
+    setSelectedSessionIds(new Set());
+    await reload();
+    if (showTrash) {
+      toast.success(`Deleted ${ids.length} ${ids.length === 1 ? "group" : "groups"}.`);
+    } else {
+      toast.success(`Moved ${ids.length} ${ids.length === 1 ? "group" : "groups"} to trash.`, {
+        action: { label: "Undo", onClick: () => void reAddSessions(removed) },
+      });
+    }
   }
 
   // ── Drag tabs between groups / drag sessions to reorder ──────────────────────
@@ -647,102 +816,37 @@ export function PopupApp() {
         compactMode && "is-compact",
       )}>
 
-        {/* ── Header ─────────────────────────────────────────── */}
-        <header className="flex items-center justify-between px-5 pb-4 pt-5">
-          <div>
-            <h1 className="wordmark text-[30px] text-ink leading-none">
-              Stash
-            </h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <motion.button
-                  type="button"
-                  aria-label="Settings"
-                  onClick={() => chrome.runtime.openOptionsPage()}
-                  className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-[image:linear-gradient(180deg,#FFFFFF_0%,var(--color-surface-subtle)_100%)] text-muted shadow-[var(--shadow-raised)] transition-[box-shadow,color] duration-[var(--dur-fast)] hover:text-ink hover:shadow-[var(--shadow-raised-hover)]"
-                  whileHover={{ y: -2, rotate: 35 }}
-                  whileTap={{ scale: 0.9, y: 0 }}
-                  transition={{ type: "spring", stiffness: 420, damping: 22 }}
-                >
-                  <Settings size={15} />
-                </motion.button>
-              </TooltipTrigger>
-              <TooltipContent>Settings</TooltipContent>
-            </Tooltip>
+        {/* ── Compact top: view toggle + settings + search ──── */}
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex flex-col gap-2 px-4 pb-2 pt-3">
+            <div className="flex items-center gap-2">
+              <ViewSwitch
+                value={topView}
+                onChange={setTopView}
+                openCount={openTabs.length}
+                stashCount={activeCount}
+              />
+              <motion.button
+                type="button"
+                aria-label="Settings"
+                onClick={() => setShowSettings(true)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-[image:linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-subtle)_100%)] text-muted shadow-[var(--shadow-raised)] transition-[box-shadow,color] duration-[var(--dur-fast)] hover:text-ink hover:shadow-[var(--shadow-raised-hover)]"
+                whileHover={{ y: -2, rotate: 35 }}
+                whileTap={{ scale: 0.9, y: 0 }}
+                transition={{ type: "spring", stiffness: 420, damping: 22 }}
+              >
+                <Settings size={16} />
+              </motion.button>
+            </div>
 
-            <motion.div
-              whileHover={{ scale: 1.035 }}
-              whileTap={{ scale: 0.95 }}
-              animate={justSaved && !reduceMotion ? { scale: [1, 1.06, 1] } : undefined}
-              transition={{ type: "spring", stiffness: 480, damping: 26 }}
-            >
-              <Button variant="primary" size="md" onClick={handleSaveTabs} disabled={isSaving} className="gap-1.5">
-                <span className="grid place-items-center" style={{ width: 14, height: 14 }}>
-                  <AnimatePresence mode="wait" initial={false}>
-                    <motion.span
-                      key={isSaving ? "load" : justSaved ? "done" : "idle"}
-                      initial={reduceMotion ? false : { opacity: 0, scale: 0.5, rotate: -30 }}
-                      animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.5, rotate: 30 }}
-                      transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-                      className="flex"
-                    >
-                      {isSaving
-                        ? <Loader2 size={14} className="animate-spin" />
-                        : justSaved
-                        ? <Check size={14} strokeWidth={3} />
-                        : <PanelTopClose size={14} />}
-                    </motion.span>
-                  </AnimatePresence>
-                </span>
-                {isSaving ? "Saving…" : justSaved ? "Saved!" : "Save tabs"}
-              </Button>
-            </motion.div>
-          </div>
-        </header>
-
-        {/* ── Tab nav ────────────────────────────────────────── */}
-        <Tabs
-          value={viewMode}
-          onValueChange={(v) => setViewMode(v as ViewMode)}
-          className="flex min-h-0 flex-1 flex-col"
-        >
-          <div className="space-y-2.5 px-5 pb-3 pt-1">
-            <TabsList>
-              <TabsTrigger value="library" active={viewMode === "library"}>
-                Library
-                {activeCount > 0 && (
-                  <span className={cn(
-                    "inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full px-1 font-mono text-[10px] font-semibold leading-none transition-colors duration-[var(--dur-fast)]",
-                    viewMode === "library" ? "bg-accent/15 text-accent-text" : "bg-ink/[0.07] text-muted-2",
-                  )}>
-                    <NumberFlow value={activeCount} />
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="trash" active={viewMode === "trash"}>
-                Trash
-                {trashCount > 0 && (
-                  <span className={cn(
-                    "inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full px-1 font-mono text-[10px] font-semibold leading-none transition-colors duration-[var(--dur-fast)]",
-                    viewMode === "trash" ? "bg-accent/15 text-accent-text" : "bg-ink/[0.07] text-muted-2",
-                  )}>
-                    <NumberFlow value={trashCount} />
-                  </span>
-                )}
-              </TabsTrigger>
-            </TabsList>
-
-            <label className="flex h-10 items-center gap-2.5 rounded-full border border-border bg-surface px-4 shadow-[var(--shadow-sm)] transition-[border-color,box-shadow] duration-[var(--dur-fast)] focus-within:border-accent/40 focus-within:shadow-[var(--shadow-md)]">
+            <label className="flex h-9 items-center gap-2.5 rounded-full border border-border bg-surface px-4 shadow-[var(--shadow-sm)] transition-[border-color,box-shadow] duration-[var(--dur-fast)] focus-within:border-accent/40 focus-within:shadow-[var(--shadow-md)]">
               <Search size={15} className="shrink-0 text-muted-2" />
               <input
                 ref={searchRef}
                 type="text"
-                placeholder="Search sessions, tabs, URLs"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                placeholder={topView === "open" ? "Filter open tabs" : "Search sessions, tabs, URLs"}
+                value={topView === "open" ? openFilter : query}
+                onChange={(e) => (topView === "open" ? setOpenFilter(e.target.value) : setQuery(e.target.value))}
                 className="min-w-0 flex-1 bg-transparent text-[14px] text-ink outline-none placeholder:text-muted-2"
                 style={{ fontFamily: "var(--font-body)" }}
               />
@@ -750,160 +854,197 @@ export function PopupApp() {
           </div>
 
           {/* ── Content ──────────────────────────────────────── */}
-          <div ref={scrollContainerRef} className={cn("stash-scroll min-h-0 flex-1 overflow-y-auto px-4 pt-1", isSessionTabDragging ? "pb-24" : "pb-5")}>
+          <div ref={scrollContainerRef} className={cn("stash-scroll min-h-0 flex-1 overflow-y-auto px-4 pt-1", isSessionTabDragging || isOpenTabDragging ? "pb-24" : (topView === "open" && selectedTabIds.size > 0) || (topView === "stash" && selectedSessionIds.size > 0) ? "pb-20" : "pb-12")}>
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
-                key={`${viewMode}-${query.trim() ? "q" : "all"}`}
+                key={topView}
                 initial={reduceMotion ? false : { opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
               >
-                <TabsContent value={viewMode}>
-                  {viewMode === "trash" && trashCount > 0 && (
-                    <div className="mb-3 flex items-center justify-between">
-                      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-2">
-                        30-day trash
-                      </span>
-                      <motion.button
-                        type="button"
-                        onClick={handleEmptyTrash}
-                        whileHover={{ y: -1 }}
-                        whileTap={{ scale: 0.95, y: 0 }}
-                        transition={{ type: "spring", stiffness: 480, damping: 26 }}
-                        className="flex items-center gap-1.5 rounded-full bg-[image:linear-gradient(180deg,#C84A4A_0%,#B84040_55%,#9E3434_100%)] px-3.5 py-1.5 font-body text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(80,20,20,0.40),0_5px_12px_-4px_rgba(184,64,64,0.50),inset_0_1px_0_rgba(255,255,255,0.25)] transition-[box-shadow,filter] duration-[var(--dur-fast)] hover:brightness-[1.05] hover:shadow-[0_2px_3px_rgba(80,20,20,0.40),0_10px_20px_-6px_rgba(184,64,64,0.55),inset_0_1px_0_rgba(255,255,255,0.30)]"
-                      >
-                        <Trash2 size={13} />
-                        Empty trash
-                      </motion.button>
-                    </div>
-                  )}
-
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={collisionDetection}
-                    autoScroll={false}
-                    onDragStart={onDragStart}
-                    onDragMove={onDragMove}
-                    onDragEnd={onDragEnd}
-                    onDragOver={onDragOver}
-                    onDragCancel={() => { clearNewGroupDrag(); setActiveTab(null); setActiveSession(null); }}
-                  >
-                    {viewMode === "library" && (
+                <div>
+                  {topView === "open" ? (
+                    <OpenTabsView
+                      tabs={filteredOpenTabs}
+                      selectedIds={selectedTabIds}
+                      onToggle={toggleTabSelected}
+                      onMarqueeSelect={(ids) => setSelectedTabIds(new Set(ids))}
+                      onToggleAll={toggleSelectAll}
+                      allSelected={allFilteredSelected}
+                      hasAnyTabs={openTabs.length > 0}
+                      isFiltering={openFilter.trim().length > 0}
+                      reduceMotion={Boolean(reduceMotion)}
+                    />
+                  ) : (
+                    <>
                       <div className="mb-2 flex items-center justify-between">
-                        {openTabs.length > 0 ? (
+                        {trashCount > 0 ? (
                           <motion.button
                             type="button"
-                            onClick={() => setOpenTabsExpanded((v) => !v)}
+                            onClick={() => setShowTrash((v) => !v)}
+                            whileHover={{ y: -1 }}
+                            whileTap={{ scale: 0.95, y: 0 }}
+                            transition={{ type: "spring", stiffness: 480, damping: 26 }}
+                            className={cn(
+                              "flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-body text-[12px] font-medium shadow-[var(--shadow-sm)] transition-[box-shadow,color] duration-[var(--dur-fast)] hover:shadow-[var(--shadow-md)]",
+                              showTrash
+                                ? "border-accent/40 bg-accent/[0.06] text-accent-text"
+                                : "border-border bg-surface text-muted hover:text-ink",
+                            )}
+                          >
+                            <Trash2 size={12} />
+                            {showTrash ? "Back to stash" : "Trash"}
+                            <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-ink/[0.07] px-1 font-mono text-[10px] font-semibold text-muted-2">
+                              {trashCount}
+                            </span>
+                          </motion.button>
+                        ) : <div />}
+
+                        {showTrash ? (
+                          trashCount > 0 ? (
+                            <motion.button
+                              type="button"
+                              onClick={handleEmptyTrash}
+                              whileHover={{ y: -1 }}
+                              whileTap={{ scale: 0.95, y: 0 }}
+                              transition={{ type: "spring", stiffness: 480, damping: 26 }}
+                              className="flex items-center gap-1.5 rounded-full bg-[image:linear-gradient(180deg,#C84A4A_0%,#B84040_55%,#9E3434_100%)] px-3.5 py-1.5 font-body text-[13px] font-semibold text-white shadow-[0_1px_1px_rgba(80,20,20,0.40),0_5px_12px_-4px_rgba(184,64,64,0.50),inset_0_1px_0_rgba(255,255,255,0.25)] transition-[box-shadow,filter] duration-[var(--dur-fast)] hover:brightness-[1.05] hover:shadow-[0_2px_3px_rgba(80,20,20,0.40),0_10px_20px_-6px_rgba(184,64,64,0.55),inset_0_1px_0_rgba(255,255,255,0.30)]"
+                            >
+                              <Trash2 size={13} />
+                              Empty trash
+                            </motion.button>
+                          ) : null
+                        ) : (
+                          <motion.button
+                            type="button"
+                            onClick={() => void handleCreateEmptyGroup()}
                             whileHover={{ y: -1 }}
                             whileTap={{ scale: 0.95, y: 0 }}
                             transition={{ type: "spring", stiffness: 480, damping: 26 }}
                             className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 font-body text-[12px] font-medium text-muted shadow-[var(--shadow-sm)] transition-[box-shadow,color] duration-[var(--dur-fast)] hover:text-ink hover:shadow-[var(--shadow-md)]"
                           >
-                            <motion.span
-                              animate={{ rotate: openTabsExpanded ? 90 : 0 }}
-                              transition={{ type: "spring", stiffness: 400, damping: 24 }}
-                              className="inline-flex"
-                            >
-                              <ChevronRight size={12} />
-                            </motion.span>
-                            Open tabs
-                            <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent/15 px-1 font-mono text-[10px] font-semibold text-accent-text">
-                              {openTabs.length}
-                            </span>
+                            <Plus size={12} />
+                            New group
                           </motion.button>
-                        ) : <div />}
-                        <motion.button
-                          type="button"
-                          onClick={() => void handleCreateEmptyGroup()}
-                          whileHover={{ y: -1 }}
-                          whileTap={{ scale: 0.95, y: 0 }}
-                          transition={{ type: "spring", stiffness: 480, damping: 26 }}
-                          className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 font-body text-[12px] font-medium text-muted shadow-[var(--shadow-sm)] transition-[box-shadow,color] duration-[var(--dur-fast)] hover:text-ink hover:shadow-[var(--shadow-md)]"
-                        >
-                          <Plus size={12} />
-                          New group
-                        </motion.button>
+                        )}
                       </div>
-                    )}
 
-                    <AnimatePresence initial={false}>
-                      {viewMode === "library" && openTabsExpanded && openTabs.length > 0 && (
-                        <motion.div
-                          key="open-tabs-panel"
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
-                          className="mb-3 overflow-hidden"
-                        >
-                          <OpenTabsPanel tabs={openTabs} />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    {visibleSessions.length > 0 ? (
-                      <SortableContext
-                        items={visibleSessions.map((s) => s.id)}
-                        strategy={verticalListSortingStrategy}
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={collisionDetection}
+                        autoScroll={false}
+                        onDragStart={onDragStart}
+                        onDragMove={onDragMove}
+                        onDragEnd={onDragEnd}
+                        onDragOver={onDragOver}
+                        onDragCancel={() => { clearNewGroupDrag(); setActiveTab(null); setActiveSession(null); }}
                       >
-                        <SessionList
-                          sessions={visibleSessions}
-                          expandedIds={expandedIds}
-                          editingId={editingId}
-                          draftName={draftName}
-                          viewMode={viewMode}
-                          freshlySavedId={freshlySavedId}
-                          restoreBurstId={restoreBurstId}
-                          compactMode={compactMode}
-                          reduceMotion={Boolean(reduceMotion)}
-                          onDraftNameChange={(name) => {
-                            setDraftName(name);
-                            setSessions((prev) =>
-                              prev.map((s) => (s.id === editingId ? { ...s, name } : s))
-                            );
-                          }}
-                          onToggleExpanded={toggleExpanded}
-                          onRenameStart={startRename}
-                          onRenameSubmit={submitRename}
-                          onRenameKeyDown={handleRenameKeyDown}
-                          onRestoreAll={handleRestoreAll}
-                          onRestoreTab={handleRestoreTab}
-                          onDeleteSession={handleDeleteSession}
-                          onDeleteForever={handleDeleteForever}
-                          onRestoreDeleted={handleRestoreDeleted}
-                          onRemoveTab={handleRemoveTab}
-                        />
-                      </SortableContext>
-                    ) : (
-                      <EmptyState
-                        viewMode={viewMode}
-                        query={query}
-                        reduceMotion={Boolean(reduceMotion)}
-                      />
-                    )}
+                        {visibleSessions.length > 0 ? (
+                          <SortableContext
+                            items={visibleSessions.map((s) => s.id)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            <MarqueeArea
+                              enabled
+                              onMarquee={(ids) => setSelectedSessionIds(new Set(ids))}
+                            >
+                              <SessionList
+                                sessions={visibleSessions}
+                                expandedIds={expandedIds}
+                                editingId={editingId}
+                                draftName={draftName}
+                                viewMode={listMode}
+                                freshlySavedId={freshlySavedId}
+                                restoreBurstId={restoreBurstId}
+                                compactMode={compactMode}
+                                reduceMotion={Boolean(reduceMotion)}
+                                selectedIds={selectedSessionIds}
+                                onToggleSelected={toggleSessionSelected}
+                                onDraftNameChange={(name) => {
+                                  setDraftName(name);
+                                  setSessions((prev) =>
+                                    prev.map((s) => (s.id === editingId ? { ...s, name } : s))
+                                  );
+                                }}
+                                onToggleExpanded={toggleExpanded}
+                                onRenameStart={startRename}
+                                onRenameSubmit={submitRename}
+                                onRenameKeyDown={handleRenameKeyDown}
+                                onRestoreAll={handleRestoreAll}
+                                onRestoreTab={handleRestoreTab}
+                                onDeleteSession={handleDeleteSession}
+                                onDeleteForever={handleDeleteForever}
+                                onRestoreDeleted={handleRestoreDeleted}
+                                onRemoveTab={handleRemoveTab}
+                              />
+                            </MarqueeArea>
+                          </SortableContext>
+                        ) : (
+                          <EmptyState
+                            viewMode={listMode}
+                            query={query}
+                            reduceMotion={Boolean(reduceMotion)}
+                          />
+                        )}
 
-                    {(isSessionTabDragging || isOpenTabDragging) && viewMode === "library" && (
-                      <NewGroupDropZone progress={newGroupProgress} instant={isOpenTabDragging} />
-                    )}
+                        {(isSessionTabDragging || isOpenTabDragging) && (
+                          <NewGroupDropZone progress={newGroupProgress} instant={isOpenTabDragging} />
+                        )}
 
-                    <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }}>
-                      {activeTab
-                        ? <TabDragPreview tab={activeTab} />
-                        : activeSession
-                        ? <SessionCardGhost session={activeSession} />
-                        : null}
-                    </DragOverlay>
-                  </DndContext>
-                </TabsContent>
+                        <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }}>
+                          {activeTab
+                            ? <TabDragPreview tab={activeTab} />
+                            : activeSession
+                            ? <SessionCardGhost session={activeSession} />
+                            : null}
+                        </DragOverlay>
+                      </DndContext>
+                    </>
+                  )}
+                </div>
               </motion.div>
             </AnimatePresence>
           </div>
-        </Tabs>
+        </div>
+
+        {/* ── Sticky Stash CTA (Open Tabs view) ──────────────── */}
+        <AnimatePresence>
+          {topView === "open" && selectedTabIds.size > 0 && (
+            <StashFooter
+              count={selectedTabIds.size}
+              busy={isSaving}
+              reduceMotion={Boolean(reduceMotion)}
+              onStash={() => void handleStashSelected()}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* ── Bulk action bar (Stash view, groups selected) ──── */}
+        <AnimatePresence>
+          {topView === "stash" && selectedSessionIds.size > 0 && (
+            <BulkActionBar
+              count={selectedSessionIds.size}
+              inTrash={showTrash}
+              reduceMotion={Boolean(reduceMotion)}
+              onRestore={() => void handleBulkRestore()}
+              onRemove={() => void handleBulkRemove()}
+              onClear={() => setSelectedSessionIds(new Set())}
+            />
+          )}
+        </AnimatePresence>
 
         <AnimatePresence>
           {saveBurst && <SaveBurstAnim burst={saveBurst} reduceMotion={Boolean(reduceMotion)} />}
         </AnimatePresence>
+
+        {/* ── In-popup settings ──────────────────────────────── */}
+        <AnimatePresence>
+          {showSettings && (
+            <PopupSettings onClose={() => setShowSettings(false)} reduceMotion={Boolean(reduceMotion)} />
+          )}
+        </AnimatePresence>
+
         <Toaster />
       </main>
     </TooltipProvider>
@@ -914,6 +1055,7 @@ export function PopupApp() {
 function SessionList({
   sessions, expandedIds, editingId, draftName, viewMode,
   freshlySavedId, restoreBurstId, compactMode, reduceMotion,
+  selectedIds, onToggleSelected,
   onDraftNameChange, onToggleExpanded, onRenameStart, onRenameSubmit,
   onRenameKeyDown, onRestoreAll, onRestoreTab, onDeleteSession,
   onDeleteForever, onRestoreDeleted, onRemoveTab,
@@ -927,6 +1069,8 @@ function SessionList({
   restoreBurstId: string | null;
   compactMode: boolean;
   reduceMotion: boolean;
+  selectedIds: Set<string>;
+  onToggleSelected: (id: string) => void;
   onDraftNameChange: (n: string) => void;
   onToggleExpanded: (id: string) => void;
   onRenameStart: (s: StashSession) => void;
@@ -939,6 +1083,7 @@ function SessionList({
   onRestoreDeleted: (id: string) => void | Promise<void>;
   onRemoveTab: (sid: string, tid: string) => void | Promise<void>;
 }) {
+  const selectionActive = selectedIds.size > 0;
   return (
     <LayoutGroup>
       <motion.section
@@ -959,6 +1104,9 @@ function SessionList({
               draftName={draftName}
               compactMode={compactMode}
               reduceMotion={reduceMotion}
+              selected={selectedIds.has(session.id)}
+              selectionActive={selectionActive}
+              onToggleSelected={() => onToggleSelected(session.id)}
               onDraftNameChange={onDraftNameChange}
               onToggleExpanded={onToggleExpanded}
               onRenameStart={onRenameStart}
@@ -981,7 +1129,8 @@ function SessionList({
 /* ── One session card (drop target for tabs, draggable for reorder) ─ */
 function SessionCard({
   session, index: i, isExpanded, isEditing, isFresh, isRestoring, viewMode,
-  draftName, compactMode, reduceMotion,
+  draftName, compactMode, reduceMotion, selected, selectionActive,
+  onToggleSelected,
   onDraftNameChange, onToggleExpanded, onRenameStart, onRenameSubmit,
   onRenameKeyDown, onRestoreAll, onRestoreTab, onDeleteSession,
   onDeleteForever, onRestoreDeleted, onRemoveTab,
@@ -996,6 +1145,9 @@ function SessionCard({
   draftName: string;
   compactMode: boolean;
   reduceMotion: boolean;
+  selected: boolean;
+  selectionActive: boolean;
+  onToggleSelected: () => void;
   onDraftNameChange: (n: string) => void;
   onToggleExpanded: (id: string) => void;
   onRenameStart: (s: StashSession) => void;
@@ -1048,6 +1200,7 @@ function SessionCard({
   return (
     <motion.article
       ref={setNodeRef}
+      data-marquee-id={session.id}
       style={sortStyle}
       initial={reduceMotion ? false : { opacity: 0, y: 10 }}
       animate={{ opacity: isDragging ? 0 : 1, y: 0 }}
@@ -1061,28 +1214,47 @@ function SessionCard({
       }}
       className={cn(
         // Accent spine is an inset box-shadow so it follows the rounded edge the full height (no corner clipping)
-        "group relative overflow-hidden rounded-[var(--radius-card)] border bg-surface shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-sm)] transition-[box-shadow,border-color,background-color] duration-[var(--dur-base)] hover:border-border-strong hover:shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-md)]",
+        "group relative select-none overflow-hidden rounded-[var(--radius-card)] border bg-surface shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-sm)] transition-[box-shadow,border-color,background-color] duration-[var(--dur-base)] hover:border-border-strong hover:shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-md)]",
         isTabDropTarget ? "border-accent bg-accent/[0.05] ring-2 ring-accent/55" : "border-border",
         isReorderTarget && "ring-2 ring-border-strong border-border-strong",
         isFresh && "ring-2 ring-accent/30",
+        selected && "border-accent bg-accent/[0.04] ring-2 ring-accent/45",
       )}
     >
-      {/* Card header */}
-      <div className={cn(
-        "flex items-start gap-3 pl-4 pr-3",
-        compactMode ? "py-3" : "py-5",
-      )}>
+      {/* Card header — single row */}
+      <div
+        className={cn(
+          "flex items-center gap-2 pl-2.5 pr-2.5",
+          compactMode ? "py-1.5" : "py-2.5",
+        )}
+      >
+        {/* Selection checkbox */}
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={selected}
+          aria-label="Select group"
+          data-marquee-skip
+          onClick={(e) => { e.stopPropagation(); onToggleSelected(); }}
+          className={cn(
+            "shrink-0 cursor-pointer select-none transition-opacity duration-[var(--dur-fast)]",
+            selected || selectionActive ? "opacity-100" : "opacity-35 group-hover:opacity-100",
+          )}
+        >
+          <CheckBox checked={selected} />
+        </button>
+
         {/* Expand button — also the drag handle in library view */}
         <motion.button
           {...(viewMode === "library" ? { ...attributes, ...listeners } : {})}
           type="button"
           aria-label={isExpanded ? "Collapse" : "Expand"}
           onClick={() => onToggleExpanded(session.id)}
-          whileHover={{ scale: 1.15 }}
-          whileTap={{ scale: 0.88 }}
+          whileHover={{ scale: 1.12 }}
+          whileTap={{ scale: 0.9 }}
           transition={{ type: "spring", stiffness: 500, damping: 22 }}
           className={cn(
-            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/50 bg-surface-subtle text-muted shadow-[var(--shadow-xs)] transition-all duration-[var(--dur-fast)] hover:border-border-strong hover:bg-control-hover hover:text-ink hover:shadow-[var(--shadow-sm)]",
+            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted-2 transition-colors duration-[var(--dur-fast)] hover:text-ink",
             viewMode === "library" && "touch-none cursor-grab active:cursor-grabbing",
           )}
         >
@@ -1091,101 +1263,100 @@ function SessionCard({
             transition={{ type: "spring", stiffness: 400, damping: 24 }}
             className="inline-flex"
           >
-            <ChevronRight size={16} />
+            <ChevronRight size={15} />
           </motion.span>
         </motion.button>
 
-        {/* Title + meta */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start gap-2">
-            {isFresh && <FreshDot reduceMotion={reduceMotion} />}
-            <form
-              className="flex-1 min-w-0"
-              onSubmit={(e) => { e.preventDefault(); void onRenameSubmit(); }}
-            >
-              {isEditing ? (
-                <textarea
-                  ref={(el) => {
-                    if (el && !el.dataset.hasFocused) {
-                      el.focus();
-                      el.select();
-                      el.dataset.hasFocused = "true";
-                    }
-                  }}
-                  value={draftName}
-                  onChange={(e) => onDraftNameChange(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      e.currentTarget.blur();
-                    } else {
-                      onRenameKeyDown(e as any);
-                    }
-                  }}
-                  onBlur={() => { if (isEditing) { void onRenameSubmit(); } }}
-                  className="font-display display-title block w-full text-[17px] font-semibold text-ink leading-snug bg-transparent border-none outline-none focus:outline-none focus:ring-0 pl-2 pr-0 py-0 rounded-none resize-none overflow-hidden cursor-text h-[48px] scrollbar-none"
-                />
-              ) : (
-                <button
-                  type="button"
-                  className="block w-full text-left"
-                  onClick={() => onToggleExpanded(session.id)}
-                >
-                  <span className="font-display display-title text-[17px] font-semibold text-ink leading-snug line-clamp-2 break-words select-none pl-2">
-                    {session.name}
-                  </span>
-                </button>
-              )}
-            </form>
-            {/* Action buttons live in the title row so they never overlap the date pills */}
-            <div className="flex shrink-0 items-center gap-1">
-              <div className="pointer-events-none flex items-center gap-0.5 opacity-0 transition-opacity duration-[var(--dur-base)] group-hover:pointer-events-auto group-hover:opacity-100">
-                {viewMode === "trash" ? (
-                  <ActionBtn label="Delete forever" danger onClick={() => void onDeleteForever(session)}>
-                    <X size={14} />
-                  </ActionBtn>
-                ) : (
-                  <>
-                    <ActionBtn label="Rename" onClick={() => onRenameStart(session)}>
-                      <Pencil size={14} />
-                    </ActionBtn>
-                    <ActionBtn label="Move to trash" danger onClick={() => void onDeleteSession(session)}>
-                      <Trash2 size={14} />
-                    </ActionBtn>
-                  </>
-                )}
-              </div>
-              {viewMode === "trash" ? (
-                <RestoreButton
-                  label="Restore from trash"
-                  icon={<Undo2 size={16} />}
-                  onClick={() => void onRestoreDeleted(session.id)}
-                />
-              ) : session.tabs.length > 0 ? (
-                <RestoreButton
-                  label="Restore tabs"
-                  icon={<RotateCcw size={16} />}
-                  onClick={() => void onRestoreAll(session)}
-                />
-              ) : (
-                <div className="h-9 w-9" />
-              )}
-            </div>
-          </div>
-
-          <button
-            type="button"
-            className="mt-2 flex w-full items-center gap-2 text-left"
+        {/* Favicons (click to expand; also a marquee start surface) */}
+        {session.tabs.length > 0 && (
+          <div
+            role="button"
+            tabIndex={-1}
+            aria-label={isExpanded ? "Collapse" : "Expand"}
             onClick={() => onToggleExpanded(session.id)}
+            className="shrink-0 cursor-pointer"
           >
             <FaviconSpine tabs={session.tabs} isRestoring={isRestoring} reduceMotion={reduceMotion} />
-            <span className="inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 font-mono text-[11px] text-muted-2">
-              <NumberFlow value={session.tabs.length} />&nbsp;{session.tabs.length === 1 ? "tab" : "tabs"}
-            </span>
-            <span className="inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 font-mono text-[11px] text-muted-2 whitespace-nowrap">
-              {formatDate(session.createdAt)}
-            </span>
-          </button>
+          </div>
+        )}
+
+        {/* Name + count */}
+        <div className="min-w-0 flex-1">
+          {isEditing ? (
+            <form onSubmit={(e) => { e.preventDefault(); void onRenameSubmit(); }}>
+              <textarea
+                data-marquee-skip
+                ref={(el) => {
+                  if (el && !el.dataset.hasFocused) {
+                    el.focus();
+                    el.select();
+                    el.dataset.hasFocused = "true";
+                  }
+                }}
+                value={draftName}
+                onChange={(e) => onDraftNameChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    e.currentTarget.blur();
+                  } else {
+                    onRenameKeyDown(e as any);
+                  }
+                }}
+                onBlur={() => { if (isEditing) { void onRenameSubmit(); } }}
+                rows={1}
+                className="font-display display-title block w-full text-[14px] font-semibold text-ink leading-tight bg-transparent border-none outline-none focus:outline-none focus:ring-0 p-0 rounded-none resize-none overflow-hidden cursor-text h-[20px] scrollbar-none"
+              />
+            </form>
+          ) : (
+            <div
+              role="button"
+              tabIndex={-1}
+              className="flex w-full cursor-pointer items-center gap-1.5 text-left"
+              onClick={() => onToggleExpanded(session.id)}
+            >
+              {isFresh && <FreshDot reduceMotion={reduceMotion} />}
+              <span className="truncate font-display display-title text-[14px] font-semibold leading-tight text-ink select-none">
+                {session.name}
+              </span>
+              <span className="shrink-0 font-mono text-[10.5px] text-muted-2">· {session.tabs.length}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Actions + restore */}
+        <div className="flex shrink-0 items-center gap-0.5">
+          <div className="pointer-events-none flex items-center opacity-0 transition-opacity duration-[var(--dur-base)] group-hover:pointer-events-auto group-hover:opacity-100">
+            {viewMode === "trash" ? (
+              <ActionBtn label="Delete forever" danger onClick={() => void onDeleteForever(session)}>
+                <X size={14} />
+              </ActionBtn>
+            ) : (
+              <>
+                <ActionBtn label="Rename" onClick={() => onRenameStart(session)}>
+                  <Pencil size={14} />
+                </ActionBtn>
+                <ActionBtn label="Move to trash" danger onClick={() => void onDeleteSession(session)}>
+                  <Trash2 size={14} />
+                </ActionBtn>
+              </>
+            )}
+          </div>
+          {viewMode === "trash" ? (
+            <RestoreButton
+              label="Restore from trash"
+              icon={<Undo2 size={15} />}
+              onClick={() => void onRestoreDeleted(session.id)}
+            />
+          ) : session.tabs.length > 0 ? (
+            <RestoreButton
+              label="Restore tabs"
+              icon={<RotateCcw size={15} />}
+              onClick={() => void onRestoreAll(session)}
+            />
+          ) : (
+            <div className="h-8 w-8" />
+          )}
         </div>
       </div>
 
@@ -1198,6 +1369,7 @@ function SessionCard({
             animate={{ height: "auto", opacity: 1 }}
             exit={reduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+            data-marquee-skip
             className="m-0 list-none overflow-hidden border-t border-border p-1.5"
           >
             {session.tabs.length === 0 ? (
@@ -1272,6 +1444,377 @@ function TabRow({
 }
 
 /* ── Open tabs panel — drag source for stashing into groups ────── */
+/* ── Rubber-band (marquee) selection ───────────────────────────────
+   Windows/file-manager style: press on empty space or an item and drag a
+   rectangle; any element marked [data-marquee-id] it touches is selected.
+   A press without movement is a plain click (handlers fire normally). */
+function MarqueeArea({
+  enabled, onMarquee, className, children,
+}: {
+  enabled: boolean;
+  onMarquee: (ids: string[]) => void;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const startRef = useRef<{ x: number; y: number } | null>(null);
+  const movedRef = useRef(false);
+  const [box, setBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    function hitTest(left: number, top: number, right: number, bottom: number) {
+      const els = ref.current?.querySelectorAll<HTMLElement>("[data-marquee-id]");
+      if (!els) return;
+      const hits: string[] = [];
+      els.forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.left < right && r.right > left && r.top < bottom && r.bottom > top) {
+          hits.push(el.dataset.marqueeId!);
+        }
+      });
+      onMarquee(hits);
+    }
+
+    function onMove(e: PointerEvent) {
+      const s = startRef.current;
+      if (!s) return;
+      const dx = e.clientX - s.x;
+      const dy = e.clientY - s.y;
+      if (!movedRef.current && Math.hypot(dx, dy) < 6) return;
+      movedRef.current = true;
+      const x = Math.min(s.x, e.clientX);
+      const y = Math.min(s.y, e.clientY);
+      const w = Math.abs(dx);
+      const h = Math.abs(dy);
+      setBox({ x, y, w, h });
+      hitTest(x, y, x + w, y + h);
+    }
+
+    function onUp() {
+      window.removeEventListener("pointermove", onMove);
+      document.body.style.userSelect = "";
+      startRef.current = null;
+      setBox(null);
+    }
+
+    function onDown(e: PointerEvent) {
+      if (e.button !== 0) return;
+      const target = e.target as HTMLElement;
+      if (target.closest("button, a, input, textarea, [data-marquee-skip]")) return;
+      startRef.current = { x: e.clientX, y: e.clientY };
+      movedRef.current = false;
+      document.body.style.userSelect = "none";
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp, { once: true });
+    }
+
+    const node = ref.current;
+    node?.addEventListener("pointerdown", onDown);
+    return () => {
+      node?.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointermove", onMove);
+      document.body.style.userSelect = "";
+    };
+  }, [enabled, onMarquee]);
+
+  return (
+    <div ref={ref} className={className}>
+      {children}
+      {box && (
+        <div
+          className="pointer-events-none fixed z-50 rounded-[3px] border border-accent/60 bg-accent/15"
+          style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ── View switch: Open Tabs ⇆ Stash, with a sliding accent pill ─── */
+function ViewSwitch({
+  value, onChange, openCount, stashCount,
+}: {
+  value: TopView;
+  onChange: (v: TopView) => void;
+  openCount: number;
+  stashCount: number;
+}) {
+  const items: { key: TopView; label: string; count: number; icon: React.ReactNode; flow?: boolean }[] = [
+    { key: "open", label: "Open Tabs", count: openCount, icon: <LayoutGrid size={14} /> },
+    { key: "stash", label: "Stash", count: stashCount, icon: <Layers size={14} />, flow: true },
+  ];
+  return (
+    <div className="relative flex flex-1 items-center gap-1 rounded-full border border-border-strong/60 bg-surface-muted p-1 shadow-[inset_0_1px_3px_rgba(20,35,80,0.13)]">
+      {items.map((it) => {
+        const active = value === it.key;
+        return (
+          <button
+            key={it.key}
+            type="button"
+            onClick={() => onChange(it.key)}
+            className="relative flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full px-2 text-[13px] font-semibold active:scale-[0.98]"
+          >
+            {active && (
+              <motion.span
+                layoutId="view-switch-pill"
+                transition={{ type: "spring", stiffness: 520, damping: 38 }}
+                className="absolute inset-0 rounded-full bg-[image:linear-gradient(180deg,var(--color-accent-hi)_0%,var(--color-accent)_55%,var(--color-accent-lo)_100%)] shadow-[var(--shadow-primary)]"
+              />
+            )}
+            <span className={cn(
+              "relative z-10 flex items-center gap-1.5 transition-colors duration-[var(--dur-fast)]",
+              active ? "text-white" : "text-muted hover:text-ink",
+            )}>
+              {it.icon}
+              {it.label}
+              {it.count > 0 && (
+                <span className={cn(
+                  "inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full px-1 font-mono text-[10px] font-semibold leading-none",
+                  active ? "bg-white/25 text-white" : "bg-ink/[0.07] text-muted-2",
+                )}>
+                  {it.flow ? <NumberFlow value={it.count} /> : it.count}
+                </span>
+              )}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Open Tabs view: pick tabs to stash ────────────────────────── */
+function OpenTabsView({
+  tabs, selectedIds, onToggle, onMarqueeSelect, onToggleAll, allSelected, hasAnyTabs, isFiltering, reduceMotion,
+}: {
+  tabs: chrome.tabs.Tab[];
+  selectedIds: Set<number>;
+  onToggle: (id: number) => void;
+  onMarqueeSelect: (ids: number[]) => void;
+  onToggleAll: () => void;
+  allSelected: boolean;
+  hasAnyTabs: boolean;
+  isFiltering: boolean;
+  reduceMotion: boolean;
+}) {
+  // Marquee drag selects exactly the tabs under the rectangle (replace).
+  const onMarquee = useCallback(
+    (ids: string[]) => onMarqueeSelect(ids.map(Number)),
+    [onMarqueeSelect],
+  );
+  if (tabs.length === 0) {
+    return (
+      <motion.section
+        initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+        className="flex min-h-[360px] flex-col items-center justify-center px-8 text-center"
+      >
+        <p className="display-emphasis font-display text-[22px] leading-tight text-ink">
+          {isFiltering ? "No matching tabs" : "No open tabs"}
+        </p>
+        <p className="mt-2 max-w-[250px] text-[13px] leading-relaxed text-muted">
+          {isFiltering
+            ? "Try a different title or URL."
+            : hasAnyTabs
+            ? "Every open tab is already pinned or can't be stashed."
+            : "Open a few tabs, then pick the ones worth keeping."}
+        </p>
+      </motion.section>
+    );
+  }
+
+  return (
+    <div className="pb-1">
+      {/* Select-all row */}
+      <div className="mb-1.5 flex items-center justify-between px-1">
+        <button
+          type="button"
+          onClick={onToggleAll}
+          className="flex items-center gap-2 rounded-full py-1 pr-2 text-[12px] font-medium text-muted transition-colors hover:text-ink"
+        >
+          <CheckBox checked={allSelected} />
+          {allSelected ? "Deselect all" : "Select all"}
+        </button>
+        <span className="font-mono text-[11px] text-muted-2">
+          {selectedIds.size > 0 ? `${selectedIds.size} selected` : `${tabs.length} tabs`}
+        </span>
+      </div>
+
+      <MarqueeArea enabled onMarquee={onMarquee} className="rounded-[var(--radius-card)] border border-border bg-surface p-1.5 shadow-[var(--shadow-sm)]">
+        <ul className="m-0 grid list-none gap-0.5 p-0">
+          {tabs.map((tab) => (
+            <OpenTabSelectRow
+              key={tab.id}
+              chromeTab={tab}
+              selected={tab.id != null && selectedIds.has(tab.id)}
+              onToggle={() => tab.id != null && onToggle(tab.id)}
+            />
+          ))}
+        </ul>
+      </MarqueeArea>
+    </div>
+  );
+}
+
+function CheckBox({ checked }: { checked: boolean }) {
+  return (
+    <span
+      className={cn(
+        "flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[6px] border transition-colors duration-[var(--dur-fast)]",
+        checked ? "border-accent bg-accent text-white" : "border-border-strong bg-surface",
+      )}
+    >
+      <AnimatePresence>
+        {checked && (
+          <motion.span
+            initial={{ scale: 0.4, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.4, opacity: 0 }}
+            transition={{ duration: 0.12 }}
+            className="flex"
+          >
+            <Check size={12} strokeWidth={3} />
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </span>
+  );
+}
+
+function OpenTabSelectRow({
+  chromeTab, selected, onToggle,
+}: {
+  chromeTab: chrome.tabs.Tab;
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  const stashTab = useMemo<StashTab>(
+    () => ({
+      id: `client-${chromeTab.id}`,
+      url: chromeTab.url ?? "",
+      title: chromeTab.title?.trim() || chromeTab.url || "Untitled",
+      favicon: chromeTab.favIconUrl ?? "",
+      capturedAt: Date.now(),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [chromeTab.id, chromeTab.url, chromeTab.title, chromeTab.favIconUrl],
+  );
+
+  return (
+    <li
+      data-marquee-id={chromeTab.id}
+      onClick={onToggle}
+      className={cn(
+        "flex w-full cursor-pointer select-none items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left transition-colors duration-[var(--dur-fast)]",
+        selected ? "bg-accent/[0.07]" : "hover:bg-surface-subtle",
+      )}
+    >
+      <CheckBox checked={selected} />
+      <Favicon tab={stashTab} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13px] font-medium text-ink">{stashTab.title}</span>
+        <span className="block truncate font-mono text-[11px] text-muted-2">{formatUrl(stashTab.url)}</span>
+      </span>
+    </li>
+  );
+}
+
+/* ── Sticky footer CTA shown while tabs are selected ───────────── */
+function StashFooter({
+  count, busy, reduceMotion, onStash,
+}: {
+  count: number;
+  busy: boolean;
+  reduceMotion: boolean;
+  onStash: () => void;
+}) {
+  return (
+    <motion.div
+      initial={reduceMotion ? false : { y: 64, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={reduceMotion ? { opacity: 0 } : { y: 64, opacity: 0 }}
+      transition={{ type: "spring", stiffness: 460, damping: 34 }}
+      className="absolute inset-x-0 bottom-0 z-10 border-t border-border bg-surface/85 px-4 py-3 backdrop-blur-md"
+    >
+      <motion.button
+        type="button"
+        onClick={onStash}
+        disabled={busy}
+        whileHover={busy ? undefined : { scale: 1.015 }}
+        whileTap={busy ? undefined : { scale: 0.98 }}
+        transition={{ type: "spring", stiffness: 480, damping: 26 }}
+        className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[image:linear-gradient(180deg,var(--color-accent-hi)_0%,var(--color-accent)_55%,var(--color-accent-lo)_100%)] font-body text-[14px] font-semibold text-white shadow-[var(--shadow-primary)] transition-[box-shadow,filter] duration-[var(--dur-fast)] hover:shadow-[var(--shadow-primary-hover)] disabled:opacity-70"
+      >
+        {busy ? (
+          <Loader2 size={15} className="animate-spin" />
+        ) : (
+          <PanelTopClose size={15} />
+        )}
+        {busy ? "Stashing…" : `Stash ${count} ${count === 1 ? "tab" : "tabs"}`}
+      </motion.button>
+    </motion.div>
+  );
+}
+
+/* ── Bulk action bar shown while groups are selected ───────────── */
+function BulkActionBar({
+  count, inTrash, reduceMotion, onRestore, onRemove, onClear,
+}: {
+  count: number;
+  inTrash: boolean;
+  reduceMotion: boolean;
+  onRestore: () => void;
+  onRemove: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <motion.div
+      initial={reduceMotion ? false : { y: 64, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={reduceMotion ? { opacity: 0 } : { y: 64, opacity: 0 }}
+      transition={{ type: "spring", stiffness: 460, damping: 34 }}
+      className="absolute inset-x-0 bottom-0 z-10 flex items-center gap-2 border-t border-border bg-surface/85 px-4 py-3 backdrop-blur-md"
+    >
+      <button
+        type="button"
+        onClick={onClear}
+        aria-label="Clear selection"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-muted shadow-[var(--shadow-sm)] transition-[color,box-shadow] duration-[var(--dur-fast)] hover:text-ink hover:shadow-[var(--shadow-md)]"
+      >
+        <X size={15} />
+      </button>
+      <span className="shrink-0 font-mono text-[11px] text-muted-2">{count}</span>
+      <div className="flex flex-1 items-center gap-2">
+        <motion.button
+          type="button"
+          onClick={onRestore}
+          whileHover={{ scale: 1.015 }}
+          whileTap={{ scale: 0.98 }}
+          transition={{ type: "spring", stiffness: 480, damping: 26 }}
+          className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full border border-border bg-[image:linear-gradient(180deg,#FFFFFF_0%,var(--color-surface-subtle)_100%)] font-body text-[13px] font-semibold text-accent-text shadow-[var(--shadow-raised)] transition-[box-shadow] duration-[var(--dur-fast)] hover:shadow-[var(--shadow-raised-hover)]"
+        >
+          {inTrash ? <Undo2 size={14} /> : <RotateCcw size={14} />}
+          Restore
+        </motion.button>
+        <motion.button
+          type="button"
+          onClick={onRemove}
+          whileHover={{ scale: 1.015 }}
+          whileTap={{ scale: 0.98 }}
+          transition={{ type: "spring", stiffness: 480, damping: 26 }}
+          className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full border border-danger-border bg-danger-soft font-body text-[13px] font-semibold text-danger-ink shadow-[var(--shadow-sm)] transition-[box-shadow,filter] duration-[var(--dur-fast)] hover:brightness-[0.99] hover:shadow-[var(--shadow-md)]"
+        >
+          <Trash2 size={14} />
+          {inTrash ? "Delete" : "Trash"}
+        </motion.button>
+      </div>
+    </motion.div>
+  );
+}
+
 function OpenTabsPanel({ tabs }: { tabs: chrome.tabs.Tab[] }) {
   return (
     <div className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-sm)]">
@@ -1479,7 +2022,7 @@ function RestoreButton({
           whileHover={{ scale: 1.12 }}
           whileTap={{ scale: 0.84 }}
           transition={{ type: "spring", stiffness: 480, damping: 20 }}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-[image:linear-gradient(180deg,#FFFFFF_0%,var(--color-surface-subtle)_100%)] text-accent-text shadow-[var(--shadow-raised)] transition-[color,box-shadow,border-color] duration-[var(--dur-fast)] hover:border-accent hover:bg-accent hover:bg-none hover:text-[#FFF2BD] hover:shadow-[var(--shadow-primary)]"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-[image:linear-gradient(180deg,#FFFFFF_0%,var(--color-surface-subtle)_100%)] text-accent-text shadow-[var(--shadow-raised)] transition-[color,box-shadow,border-color] duration-[var(--dur-fast)] hover:border-accent hover:bg-accent hover:bg-none hover:text-[#FFF2BD] hover:shadow-[var(--shadow-primary)]"
         >
           {icon}
         </motion.button>
@@ -1562,7 +2105,7 @@ function Favicon({ tab, spine = false }: { tab: StashTab; spine?: boolean }) {
   if (!src || failed) {
     return <span className={cls}>{tab.title.trim().charAt(0).toUpperCase() || "S"}</span>;
   }
-  return <img className={cls} src={src} alt="" onError={() => setFailed(true)} />;
+  return <img className={cls} src={src} alt="" draggable={false} onError={() => setFailed(true)} />;
 }
 
 function SaveBurstAnim({ burst, reduceMotion }: { burst: SaveBurst; reduceMotion: boolean }) {

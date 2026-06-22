@@ -19,7 +19,9 @@ export type BackgroundRequest =
   | { type: "CREATE_EMPTY_SESSION" }
   | { type: "REORDER_SESSIONS"; order: string[] }
   | { type: "ADD_OPEN_TAB_TO_SESSION"; sessionId: string; tabId: number }
-  | { type: "CREATE_GROUP_FROM_OPEN_TAB"; tabId: number; sessionId: string; sessionName: string; order: string[] };
+  | { type: "CREATE_GROUP_FROM_OPEN_TAB"; tabId: number; sessionId: string; sessionName: string; order: string[] }
+  | { type: "STASH_SELECTED_TABS"; tabIds: number[]; name?: string; closeAfter: boolean }
+  | { type: "ADD_SELECTED_TABS_TO_SESSION"; sessionId: string; tabIds: number[]; closeAfter: boolean };
 
 export type BackgroundResponse =
   | {

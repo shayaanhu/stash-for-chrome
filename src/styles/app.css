@@ -5,18 +5,18 @@
 @import "tw-animate-css";
 
 @theme {
-  /* Warm stone & mid blue — barely-warm canvas, blue ink + accent */
-  --color-bg:           #F2F1EE;
-  --color-surface:      #FFFFFF;
+  /* Soft buttermilk & mid blue — warm cream canvas, blue ink + accent */
+  --color-bg:           #F4EFE2;
+  --color-surface:      #FFFDF6;
   --color-ink:          #1C336B;
   --color-muted:        #4A5E92;
   --color-muted-2:      #8A93B0;
-  --color-border:       #E4E2DC;
-  --color-border-strong:#D2CFC7;
-  --color-surface-subtle:#F8F7F5;
-  --color-surface-muted: #ECEAE5;
-  --color-control-hover: #E6E4DF;
-  --color-chip:          #EEECEA;
+  --color-border:       #E9E1CF;
+  --color-border-strong:#D8CDB2;
+  --color-surface-subtle:#FBF8EF;
+  --color-surface-muted: #EDE7D5;
+  --color-control-hover: #E9E2CE;
+  --color-chip:          #F1ECDC;
 
   /* Accent — mid blue. Fills: bg-accent (buttermilk text). Text: text-accent-text */
   --color-accent:      #285CCC;
@@ -102,9 +102,9 @@ body {
 .paper-bg {
   background-color: var(--color-bg);
   background-image:
-    radial-gradient(120% 90% at 100% -10%, #F8F7F4 0%, transparent 55%),
-    radial-gradient(110% 80% at -8% 110%, #ECEAE5 0%, transparent 48%),
-    radial-gradient(90% 70% at 50% 45%, #FAFAF8 0%, transparent 72%);
+    radial-gradient(120% 90% at 100% -10%, #FCF8EC 0%, transparent 55%),
+    radial-gradient(110% 80% at -8% 110%, #EFE8D5 0%, transparent 48%),
+    radial-gradient(90% 70% at 50% 45%, #FDFBF3 0%, transparent 72%);
 }
 /* Fine grain so the canvas reads as paper, not flat fill */
 .paper-bg::after {

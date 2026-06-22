@@ -211,6 +211,23 @@ async function handleRequest(request: BackgroundRequest): Promise<BackgroundResp
         void closeTabsSafely([chromeTab]).catch(() => undefined);
         return { ok: true, session };
       }
+      case "CREATE_GROUP_FROM_OPEN_TAB": {
+        const chromeTab = await getTab(request.tabId);
+        if (!isSavableChromeTab(chromeTab)) throw new Error("This tab cannot be stashed.");
+        const stashTab = createStashTab(chromeTab);
+        const session: StashSession = {
+          id: request.sessionId,
+          name: request.sessionName,
+          createdAt: Date.now(),
+          tabs: [stashTab],
+          manuallyCreated: true,
+        };
+        await addSession(session);
+        await setSessionOrder(request.order);
+        flashSavedBadge();
+        void closeTabsSafely([chromeTab]).catch(() => undefined);
+        return { ok: true, session };
+      }
       default:
         return { ok: false, error: "Unknown Stash request." };
     }

@@ -18,7 +18,8 @@ export type BackgroundRequest =
   | { type: "UPDATE_SETTINGS"; settings: Partial<StashSettings> }
   | { type: "CREATE_EMPTY_SESSION" }
   | { type: "REORDER_SESSIONS"; order: string[] }
-  | { type: "ADD_OPEN_TAB_TO_SESSION"; sessionId: string; tabId: number };
+  | { type: "ADD_OPEN_TAB_TO_SESSION"; sessionId: string; tabId: number }
+  | { type: "CREATE_GROUP_FROM_OPEN_TAB"; tabId: number; sessionId: string; sessionName: string; order: string[] };
 
 export type BackgroundResponse =
   | {

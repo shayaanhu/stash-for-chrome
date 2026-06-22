@@ -87,6 +87,7 @@ export function PopupApp() {
   const [openTabs, setOpenTabs] = useState<chrome.tabs.Tab[]>([]);
   const [openTabsExpanded, setOpenTabsExpanded] = useState(false);
   const [isSessionTabDragging, setIsSessionTabDragging] = useState(false);
+  const [isOpenTabDragging, setIsOpenTabDragging] = useState(false);
   const [newGroupProgress, setNewGroupProgress] = useState(0);
   const newGroupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const newGroupIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -242,9 +243,11 @@ export function PopupApp() {
     if (type === "session") {
       setActiveSession((event.active.data.current?.session as StashSession | undefined) ?? null);
       setIsSessionTabDragging(false);
+      setIsOpenTabDragging(false);
     } else {
       setActiveTab((event.active.data.current?.tab as StashTab | undefined) ?? null);
       setIsSessionTabDragging(type === "tab");
+      setIsOpenTabDragging(type === "open-tab");
       const native = event.activatorEvent as PointerEvent | MouseEvent;
       initialPointerYRef.current = native.clientY;
       pointerYRef.current = native.clientY;
@@ -252,7 +255,8 @@ export function PopupApp() {
   }
 
   function onDragMove(event: DragMoveEvent) {
-    if (event.active.data.current?.type !== "tab") return;
+    const moveType = event.active.data.current?.type;
+    if (moveType !== "tab" && moveType !== "open-tab") return;
     const y = initialPointerYRef.current + event.delta.y;
     pointerYRef.current = y;
     const el = scrollContainerRef.current;
@@ -271,6 +275,7 @@ export function PopupApp() {
     if (newGroupIntervalRef.current) { clearInterval(newGroupIntervalRef.current); newGroupIntervalRef.current = null; }
     setNewGroupProgress(0);
     setIsSessionTabDragging(false);
+    setIsOpenTabDragging(false);
     newGroupDoneRef.current = false;
     newGroupDragDataRef.current = null;
   }
@@ -398,6 +403,38 @@ export function PopupApp() {
 
       // Remove from open tabs panel immediately.
       setOpenTabs((prev) => prev.filter((t) => t.id !== chromeTabId));
+
+      if (toSessionId === "new-group-zone") {
+        const now = Date.now();
+        const sessionId = crypto.randomUUID();
+        const sessionName = autoNameSession([tab], now);
+        const newSession: StashSession = {
+          id: sessionId,
+          name: sessionName,
+          createdAt: now,
+          tabs: [tab],
+          manuallyCreated: true,
+        };
+        const newOrder = [sessionId, ...sessions.filter(s => !s.deletedAt).map(s => s.id)];
+        setSessions(prev => [newSession, ...prev]);
+
+        const response = await sendBackgroundRequest({
+          type: "CREATE_GROUP_FROM_OPEN_TAB",
+          tabId: chromeTabId,
+          sessionId,
+          sessionName,
+          order: newOrder,
+        });
+        if (!response.ok) {
+          toast.error(response.error);
+          void reload();
+        } else {
+          toast.success(`"${sessionName}" created.`, {
+            action: { label: "Undo", onClick: () => void reload() },
+          });
+        }
+        return;
+      }
 
       const response = await sendBackgroundRequest({
         type: "ADD_OPEN_TAB_TO_SESSION",
@@ -846,8 +883,8 @@ export function PopupApp() {
                       />
                     )}
 
-                    {isSessionTabDragging && viewMode === "library" && (
-                      <NewGroupDropZone progress={newGroupProgress} />
+                    {(isSessionTabDragging || isOpenTabDragging) && viewMode === "library" && (
+                      <NewGroupDropZone progress={newGroupProgress} instant={isOpenTabDragging} />
                     )}
 
                     <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }}>
@@ -1245,7 +1282,7 @@ function OpenTabsPanel({ tabs }: { tabs: chrome.tabs.Tab[] }) {
       </ul>
       <div className="border-t border-border/60 px-3 py-2">
         <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-2">
-          Drag a tab onto a group to stash it there
+          Drag onto a group to stash · drop zone to create new
         </p>
       </div>
     </div>
@@ -1327,8 +1364,8 @@ function applyTabMove(
   });
 }
 
-/* ── New-group drop zone (shown while dragging a session tab) ───── */
-function NewGroupDropZone({ progress }: { progress: number }) {
+/* ── New-group drop zone ─────────────────────────────────────────── */
+function NewGroupDropZone({ progress, instant }: { progress: number; instant?: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: "new-group-zone" });
   return (
     <div
@@ -1342,9 +1379,11 @@ function NewGroupDropZone({ progress }: { progress: number }) {
     >
       <Plus size={13} className="shrink-0" />
       <span className="font-body text-[12px] font-medium select-none">
-        {isOver ? "Hold to create new group…" : "Drop here to create new group"}
+        {isOver
+          ? instant ? "Release to create new group" : "Hold to create new group…"
+          : "Drop here to create new group"}
       </span>
-      {isOver && (
+      {isOver && !instant && (
         <div
           className="absolute bottom-0 left-0 h-[3px] bg-accent"
           style={{ width: `${progress}%` }}

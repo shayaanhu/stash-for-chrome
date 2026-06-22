@@ -45,6 +45,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "motion/react";
 import type { FormEvent, KeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { PopupSettings } from "./PopupSettings";
 import { EmptyPreview } from "../components/empty/EmptyPreview";
@@ -1201,6 +1202,8 @@ function SessionCard({
     <motion.article
       ref={setNodeRef}
       data-marquee-id={session.id}
+      data-marquee-skip
+      {...(viewMode === "library" ? { ...attributes, ...listeners } : {})}
       style={sortStyle}
       initial={reduceMotion ? false : { opacity: 0, y: 10 }}
       animate={{ opacity: isDragging ? 0 : 1, y: 0 }}
@@ -1215,6 +1218,7 @@ function SessionCard({
       className={cn(
         // Accent spine is an inset box-shadow so it follows the rounded edge the full height (no corner clipping)
         "group relative select-none overflow-hidden rounded-[var(--radius-card)] border bg-surface shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-sm)] transition-[box-shadow,border-color,background-color] duration-[var(--dur-base)] hover:border-border-strong hover:shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-md)]",
+        viewMode === "library" && "cursor-grab touch-none active:cursor-grabbing",
         isTabDropTarget ? "border-accent bg-accent/[0.05] ring-2 ring-accent/55" : "border-border",
         isReorderTarget && "ring-2 ring-border-strong border-border-strong",
         isFresh && "ring-2 ring-accent/30",
@@ -1244,19 +1248,15 @@ function SessionCard({
           <CheckBox checked={selected} />
         </button>
 
-        {/* Expand button — also the drag handle in library view */}
+        {/* Expand button (the whole card is the drag handle for reorder) */}
         <motion.button
-          {...(viewMode === "library" ? { ...attributes, ...listeners } : {})}
           type="button"
           aria-label={isExpanded ? "Collapse" : "Expand"}
           onClick={() => onToggleExpanded(session.id)}
           whileHover={{ scale: 1.12 }}
           whileTap={{ scale: 0.9 }}
           transition={{ type: "spring", stiffness: 500, damping: 22 }}
-          className={cn(
-            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted-2 transition-colors duration-[var(--dur-fast)] hover:text-ink",
-            viewMode === "library" && "touch-none cursor-grab active:cursor-grabbing",
-          )}
+          className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-2 transition-colors duration-[var(--dur-fast)] hover:text-ink"
         >
           <motion.span
             animate={{ rotate: isExpanded ? 90 : 0 }}
@@ -1457,77 +1457,88 @@ function MarqueeArea({
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const startRef = useRef<{ x: number; y: number } | null>(null);
-  const movedRef = useRef(false);
+  const cbRef = useRef(onMarquee);
+  cbRef.current = onMarquee;
+  // origin holds the press point; once we pass the threshold, dragging=true and
+  // the container has pointer capture so it owns every subsequent move/up.
+  const originRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
+  const draggingRef = useRef(false);
   const [box, setBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
 
-  useEffect(() => {
-    if (!enabled) return;
-
-    function hitTest(left: number, top: number, right: number, bottom: number) {
-      const els = ref.current?.querySelectorAll<HTMLElement>("[data-marquee-id]");
-      if (!els) return;
-      const hits: string[] = [];
-      els.forEach((el) => {
-        const r = el.getBoundingClientRect();
-        if (r.left < right && r.right > left && r.top < bottom && r.bottom > top) {
-          hits.push(el.dataset.marqueeId!);
-        }
-      });
-      onMarquee(hits);
-    }
-
-    function onMove(e: PointerEvent) {
-      const s = startRef.current;
-      if (!s) return;
-      const dx = e.clientX - s.x;
-      const dy = e.clientY - s.y;
-      if (!movedRef.current && Math.hypot(dx, dy) < 6) return;
-      movedRef.current = true;
-      const x = Math.min(s.x, e.clientX);
-      const y = Math.min(s.y, e.clientY);
-      const w = Math.abs(dx);
-      const h = Math.abs(dy);
-      setBox({ x, y, w, h });
-      hitTest(x, y, x + w, y + h);
-    }
-
-    function onUp() {
-      window.removeEventListener("pointermove", onMove);
-      document.body.style.userSelect = "";
-      startRef.current = null;
-      setBox(null);
-    }
-
-    function onDown(e: PointerEvent) {
-      if (e.button !== 0) return;
-      const target = e.target as HTMLElement;
-      if (target.closest("button, a, input, textarea, [data-marquee-skip]")) return;
-      startRef.current = { x: e.clientX, y: e.clientY };
-      movedRef.current = false;
-      document.body.style.userSelect = "none";
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onUp, { once: true });
-    }
-
+  function hitTest(left: number, top: number, right: number, bottom: number) {
     const node = ref.current;
-    node?.addEventListener("pointerdown", onDown);
-    return () => {
-      node?.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("pointermove", onMove);
-      document.body.style.userSelect = "";
-    };
-  }, [enabled, onMarquee]);
+    if (!node) return;
+    const hits: string[] = [];
+    node.querySelectorAll<HTMLElement>("[data-marquee-id]").forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.left < right && r.right > left && r.top < bottom && r.bottom > top) {
+        hits.push(el.dataset.marqueeId!);
+      }
+    });
+    cbRef.current(hits);
+  }
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (!enabled || e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest("button, a, input, textarea, [data-marquee-skip]")) return;
+    originRef.current = { x: e.clientX, y: e.clientY, pointerId: e.pointerId };
+    draggingRef.current = false;
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const o = originRef.current;
+    if (!o) return;
+    const dx = e.clientX - o.x;
+    const dy = e.clientY - o.y;
+    if (!draggingRef.current) {
+      if (Math.hypot(dx, dy) < 5) return;
+      draggingRef.current = true;
+      // Capture so we keep receiving move/up even as the pointer leaves rows.
+      try { ref.current?.setPointerCapture(o.pointerId); } catch { /* noop */ }
+      document.body.style.userSelect = "none";
+    }
+    const x = Math.min(o.x, e.clientX);
+    const y = Math.min(o.y, e.clientY);
+    const w = Math.abs(dx);
+    const h = Math.abs(dy);
+    setBox({ x, y, w, h });
+    hitTest(x, y, x + w, y + h);
+  }
+
+  function endDrag(e: React.PointerEvent<HTMLDivElement>) {
+    if (!originRef.current) return;
+    const wasDragging = draggingRef.current;
+    try { ref.current?.releasePointerCapture(e.pointerId); } catch { /* noop */ }
+    originRef.current = null;
+    draggingRef.current = false;
+    document.body.style.userSelect = "";
+    setBox(null);
+    if (wasDragging) {
+      const swallow = (ev: MouseEvent) => { ev.stopPropagation(); ev.preventDefault(); };
+      window.addEventListener("click", swallow, { capture: true, once: true });
+      setTimeout(() => window.removeEventListener("click", swallow, true), 0);
+    }
+  }
 
   return (
-    <div ref={ref} className={className}>
+    <div
+      ref={ref}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      className={className}
+    >
       {children}
-      {box && (
-        <div
-          className="pointer-events-none fixed z-50 rounded-[3px] border border-accent/60 bg-accent/15"
-          style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
-        />
-      )}
+      {box &&
+        createPortal(
+          <div
+            className="pointer-events-none fixed z-[9999] rounded-[4px] border-2 border-accent/70 bg-accent/20 shadow-[0_2px_10px_-2px_rgba(40,92,204,0.4)]"
+            style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
+          />,
+          document.body,
+        )}
     </div>
   );
 }
@@ -1643,8 +1654,8 @@ function OpenTabsView({
         </span>
       </div>
 
-      <MarqueeArea enabled onMarquee={onMarquee} className="rounded-[var(--radius-card)] border border-border bg-surface p-1.5 shadow-[var(--shadow-sm)]">
-        <ul className="m-0 grid list-none gap-0.5 p-0">
+      <MarqueeArea enabled onMarquee={onMarquee} className="min-h-[340px] rounded-[var(--radius-card)] border border-border bg-surface p-1.5 shadow-[var(--shadow-sm)]">
+        <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
           {tabs.map((tab) => (
             <OpenTabSelectRow
               key={tab.id}
@@ -1708,15 +1719,14 @@ function OpenTabSelectRow({
       data-marquee-id={chromeTab.id}
       onClick={onToggle}
       className={cn(
-        "flex w-full cursor-pointer select-none items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left transition-colors duration-[var(--dur-fast)]",
+        "flex w-full min-w-0 cursor-pointer select-none items-center gap-2.5 overflow-hidden rounded-[10px] px-2.5 py-2 text-left transition-colors duration-[var(--dur-fast)]",
         selected ? "bg-accent/[0.07]" : "hover:bg-surface-subtle",
       )}
     >
       <CheckBox checked={selected} />
       <Favicon tab={stashTab} />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] font-medium text-ink">{stashTab.title}</span>
-        <span className="block truncate font-mono text-[11px] text-muted-2">{formatUrl(stashTab.url)}</span>
+      <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">
+        {stashTab.title}
       </span>
     </li>
   );
@@ -2139,27 +2149,23 @@ function SaveBurstAnim({ burst, reduceMotion }: { burst: SaveBurst; reduceMotion
 function SessionCardGhost({ session }: { session: StashSession }) {
   return (
     <div
-      className="w-[368px] overflow-hidden rounded-[var(--radius-card)] border border-accent/25 bg-surface shadow-[inset_4px_0_0_0_var(--color-accent),0_24px_48px_-8px_rgba(0,0,0,0.28),0_8px_16px_-4px_rgba(0,0,0,0.12)]"
-      style={{ transform: "rotate(-0.8deg) scale(1.025)" }}
+      className="w-[336px] overflow-hidden rounded-[var(--radius-card)] border border-accent/25 bg-surface shadow-[inset_4px_0_0_0_var(--color-accent),0_18px_36px_-10px_rgba(20,35,80,0.30),0_6px_14px_-4px_rgba(20,35,80,0.16)]"
+      style={{ transform: "rotate(-1.2deg)" }}
     >
-      <div className="flex items-start gap-3 px-4 py-5">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/50 bg-surface-subtle text-muted shadow-[var(--shadow-xs)]">
-          <ChevronRight size={16} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <span className="font-display display-title block pl-2 text-[17px] font-semibold leading-snug text-ink line-clamp-1">
+      <div className="flex items-center gap-2 py-2.5 pl-2.5 pr-2.5">
+        <CheckBox checked={false} />
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center text-muted-2">
+          <ChevronRight size={15} />
+        </span>
+        {session.tabs.length > 0 && (
+          <FaviconSpine tabs={session.tabs} isRestoring={false} reduceMotion={true} />
+        )}
+        <span className="flex min-w-0 flex-1 items-center gap-1.5">
+          <span className="truncate font-display display-title text-[14px] font-semibold leading-tight text-ink">
             {session.name}
           </span>
-          <div className="mt-2 flex items-center gap-2">
-            <FaviconSpine tabs={session.tabs} isRestoring={false} reduceMotion={true} />
-            <span className="inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 font-mono text-[11px] text-muted-2">
-              {session.tabs.length}&nbsp;{session.tabs.length === 1 ? "tab" : "tabs"}
-            </span>
-            <span className="inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 font-mono text-[11px] text-muted-2 whitespace-nowrap">
-              {new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(session.createdAt))}
-            </span>
-          </div>
-        </div>
+          <span className="shrink-0 font-mono text-[10.5px] text-muted-2">· {session.tabs.length}</span>
+        </span>
       </div>
     </div>
   );

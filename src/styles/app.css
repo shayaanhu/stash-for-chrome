@@ -97,6 +97,18 @@
 body {
   margin: 0;
   background: var(--color-bg);
+  /* App UI, not a document — text isn't selectable, so drags never start a
+     native text selection (which otherwise hijacks marquee/drag gestures). */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Re-enable selection only where the user actually types. */
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .paper-bg {

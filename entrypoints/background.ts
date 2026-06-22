@@ -3,6 +3,7 @@ import {
   addSession,
   addSessions,
   addTabToSession,
+  createGroupFromTab,
   deleteSessionForever,
   emptyTrash,
   ensureMeta,
@@ -166,6 +167,15 @@ async function handleRequest(request: BackgroundRequest): Promise<BackgroundResp
       case "MOVE_TAB": {
         const { to } = await moveTab(request.fromSessionId, request.toSessionId, request.tabId);
         return { ok: true, session: to };
+      }
+      case "CREATE_GROUP_FROM_TAB": {
+        const session = await createGroupFromTab(
+          request.fromSessionId,
+          request.tabId,
+          request.newSession,
+          request.order,
+        );
+        return { ok: true, session };
       }
       case "ADD_SESSIONS":
         return { ok: true, count: await addSessions(request.sessions) };

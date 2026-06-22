@@ -241,6 +241,47 @@ export function moveTab(
   });
 }
 
+/**
+ * Pull a tab out of its group into a brand-new group placed right after the
+ * source. Writes sessions, meta, and the display order in a SINGLE storage set
+ * so the UI never observes an intermediate state (e.g. the tab momentarily
+ * snapping back to the source group). `order` is the desired active-session
+ * display order, already reflecting the new group's position.
+ */
+export function createGroupFromTab(
+  fromSessionId: string,
+  tabId: string,
+  newSession: StashSession,
+  order: string[],
+): Promise<StashSession | undefined> {
+  const run = writeChain.then(async () => {
+    const current = await loadState();
+    const source = current.find((s) => s.id === fromSessionId);
+    const tab = source?.tabs.find((t) => t.id === tabId);
+    if (!source || !tab) return undefined;
+
+    const withoutTab = current.map((s) =>
+      s.id === fromSessionId ? { ...s, tabs: s.tabs.filter((t) => t.id !== tabId) } : s,
+    );
+    const idx = withoutTab.findIndex((s) => s.id === fromSessionId);
+    const created: StashSession = { ...newSession, tabs: [tab] };
+    const next =
+      idx === -1
+        ? [created, ...withoutTab]
+        : [...withoutTab.slice(0, idx + 1), created, ...withoutTab.slice(idx + 1)];
+
+    await setRaw({
+      [SESSIONS_KEY]: next,
+      [META_KEY]: { version: SCHEMA_VERSION } satisfies StoredMeta,
+      [SESSION_ORDER_KEY]: order,
+    });
+    return created;
+  });
+  // Keep the chain alive even if this link rejects, so later writes still run.
+  writeChain = run.then(() => undefined, () => undefined);
+  return run;
+}
+
 export function addTabToSession(sessionId: string, tab: StashTab): Promise<StashSession | undefined> {
   return mutate((sessions) => {
     const next = sessions.map((s) => {

@@ -23,7 +23,6 @@ import {
   PointerSensor,
   closestCenter,
   pointerWithin,
-  useDndContext,
   useDraggable,
   useDroppable,
   useSensor,
@@ -319,31 +318,44 @@ export function PopupApp() {
           manuallyCreated: true,
         };
 
-        // Optimistic: new session with tab appears right after source; source loses the tab.
-        let newOrder: string[] = [];
-        setSessions((prev) => {
-          const updated = prev.map(s => s.id === data.fromSessionId
-            ? { ...s, tabs: s.tabs.filter(t => t.id !== data.tabId) }
-            : s
-          );
-          const idx = updated.findIndex(s => s.id === data.fromSessionId);
-          const result = idx === -1
-            ? [...updated, newSession]
-            : [...updated.slice(0, idx + 1), newSession, ...updated.slice(idx + 1)];
-          newOrder = result.filter(s => !s.deletedAt).map(s => s.id);
-          return result;
-        });
+        // Build the next list + explicit display order SYNCHRONOUSLY from current
+        // state. The order must be computed here (not inside the setSessions
+        // updater, which React runs asynchronously) — otherwise the request fires
+        // with an empty order, applySessionOrder falls back to newest-first, and
+        // the brand-new group shoots to the top. New group sits right after source.
+        const updated = sessions.map(s => s.id === data.fromSessionId
+          ? { ...s, tabs: s.tabs.filter(t => t.id !== data.tabId) }
+          : s
+        );
+        const idx = updated.findIndex(s => s.id === data.fromSessionId);
+        const result = idx === -1
+          ? [...updated, newSession]
+          : [...updated.slice(0, idx + 1), newSession, ...updated.slice(idx + 1)];
+        const newOrder = result.filter(s => !s.deletedAt).map(s => s.id);
 
-        // Lock in display order FIRST so that reloads triggered by ADD_SESSIONS
-        // already see the correct order (new session after source, not at the top).
-        // Then create the empty session and move the tab atomically via MOVE_TAB
-        // (avoids normalizeSessions filtering the tab out).
-        void (newOrder.length
-          ? sendBackgroundRequest({ type: "REORDER_SESSIONS", order: newOrder })
-          : Promise.resolve({ ok: true } as const)
-        )
-          .then(() => sendBackgroundRequest({ type: "ADD_SESSIONS", sessions: [{ ...newSession, tabs: [] }] }))
-          .then(() => sendBackgroundRequest({ type: "MOVE_TAB", fromSessionId: data.fromSessionId, toSessionId: newSession.id, tabId: data.tabId }));
+        // Optimistic: new session with tab appears right after source; source loses the tab.
+        setSessions(result);
+
+        // If the source group just lost its last tab, collapse it — otherwise it
+        // sits open showing the empty "Drop tabs here" placeholder. Groups should
+        // only expand when the user clicks them.
+        const sourceAfter = updated.find(s => s.id === data.fromSessionId);
+        if (sourceAfter && sourceAfter.tabs.length === 0) {
+          setExpandedIds(cur => { const n = new Set(cur); n.delete(data.fromSessionId); return n; });
+        }
+
+        // One atomic write: pull the tab into a new group placed right after the
+        // source, and lock in the display order — all in a single storage set.
+        // Splitting this across REORDER + ADD + MOVE let an intermediate reload
+        // render the tab snapped back to the source group (jarring) before the
+        // move landed. The new group carries the real tab, so nothing is lost.
+        void sendBackgroundRequest({
+          type: "CREATE_GROUP_FROM_TAB",
+          fromSessionId: data.fromSessionId,
+          tabId: data.tabId,
+          newSession: { ...newSession, tabs: [] },
+          order: newOrder,
+        });
       }, duration);
     } else {
       if (newGroupTimerRef.current) { clearTimeout(newGroupTimerRef.current); newGroupTimerRef.current = null; }
@@ -701,7 +713,7 @@ export function PopupApp() {
           </div>
 
           {/* ── Content ──────────────────────────────────────── */}
-          <div ref={scrollContainerRef} className={cn("min-h-0 flex-1 overflow-y-auto px-4 pt-1", isSessionTabDragging ? "pb-24" : "pb-5")}>
+          <div ref={scrollContainerRef} className={cn("stash-scroll min-h-0 flex-1 overflow-y-auto px-4 pt-1", isSessionTabDragging ? "pb-24" : "pb-5")}>
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={`${viewMode}-${query.trim() ? "q" : "all"}`}
@@ -959,8 +971,8 @@ function SessionCard({
   onRestoreDeleted: (id: string) => void | Promise<void>;
   onRemoveTab: (sid: string, tid: string) => void | Promise<void>;
 }) {
-  const { active: dndActive } = useDndContext();
   const {
+    active: dndActive,
     attributes,
     listeners,
     setNodeRef,
@@ -975,6 +987,11 @@ function SessionCard({
   });
 
   const isSessionDrag = dndActive?.data.current?.type === "session";
+  // Any drag in progress (tab or session). Hover/tap micro-animations are
+  // suppressed while dragging — otherwise the pointer passing over a card
+  // triggers its lift/scale spring mid-drag, which reads as jank on the
+  // neighbouring groups.
+  const isAnyDragging = dndActive != null;
 
   // Only apply positional transform during session-level reorder drags;
   // ignore it when a tab is being dragged so sessions don't shift around.
@@ -998,8 +1015,8 @@ function SessionCard({
       initial={reduceMotion ? false : { opacity: 0, y: 10 }}
       animate={{ opacity: isDragging ? 0 : 1, y: 0 }}
       exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.82, x: 24, transition: { duration: 0.2, ease: [0.4, 0, 1, 1] } }}
-      whileHover={reduceMotion || isDragging ? undefined : { y: -3, transition: { type: "spring", stiffness: 420, damping: 26 } }}
-      whileTap={reduceMotion ? undefined : { scale: 0.992 }}
+      whileHover={reduceMotion || isDragging || isAnyDragging ? undefined : { y: -3, transition: { type: "spring", stiffness: 420, damping: 26 } }}
+      whileTap={reduceMotion || isAnyDragging ? undefined : { scale: 0.992 }}
       transition={{
         duration: 0.22,
         delay: reduceMotion ? 0 : Math.min(i * 0.04, 0.16),
@@ -1221,7 +1238,7 @@ function TabRow({
 function OpenTabsPanel({ tabs }: { tabs: chrome.tabs.Tab[] }) {
   return (
     <div className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-sm)]">
-      <ul className="m-0 max-h-[176px] list-none overflow-y-auto p-1.5">
+      <ul className="stash-scroll m-0 max-h-[176px] list-none overflow-y-auto p-1.5">
         {tabs.map((tab) => (
           <OpenTabRow key={tab.id} chromeTab={tab} />
         ))}

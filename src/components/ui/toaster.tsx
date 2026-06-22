@@ -14,7 +14,7 @@ export function Toaster(props: ToasterProps) {
         info: <Info size={17} className="text-accent" strokeWidth={2.25} />,
       }}
       toastOptions={{
-        duration: 5000,
+        duration: 2000,
         classNames: {
           toast:
             "!rounded-full !border !border-border !bg-surface/95 !backdrop-blur-sm !pl-4 !pr-2 !py-2.5 !text-ink !shadow-[var(--shadow-pop)] !font-body !gap-2.5",

@@ -163,6 +163,19 @@ function isExpiredTrash(session: StashSession, now: number) {
   return Boolean(session.deletedAt && now - session.deletedAt > TRASH_RETENTION_MS);
 }
 
+/**
+ * A group that loses its last tab is sent to trash (recoverable for 30 days)
+ * rather than left as an empty "·0" shell in the active list. Manually-created
+ * empty groups never reach here — they have no tab to remove — so they're kept
+ * until the user fills or explicitly deletes them.
+ */
+function trashIfEmpty(session: StashSession, now: number): StashSession {
+  if (session.tabs.length === 0 && !session.deletedAt) {
+    return { ...session, deletedAt: now };
+  }
+  return session;
+}
+
 // ── Reads (safe to call from any context) ─────────────────────────────────────
 /** Pure read. Filters expired trash in memory; the actual purge is alarm-driven. */
 export async function getSessions(): Promise<StashSession[]> {
@@ -198,11 +211,12 @@ export function updateSessionName(sessionId: string, name: string): Promise<Stas
 }
 
 export function removeTabFromSession(sessionId: string, tabId: string): Promise<StashSession | undefined> {
+  const now = Date.now();
   return mutate((sessions) => {
     const next = sessions.map((session) => {
       if (session.id !== sessionId) return session;
       const tabs = session.tabs.filter((tab) => tab.id !== tabId);
-      return { ...session, tabs };
+      return trashIfEmpty({ ...session, tabs }, now);
     });
     return { next, result: next.find((s) => s.id === sessionId) };
   });
@@ -215,6 +229,7 @@ export function moveTab(
   toSessionId: string,
   tabId: string,
 ): Promise<{ from?: StashSession; to?: StashSession }> {
+  const now = Date.now();
   return mutate<{ from?: StashSession; to?: StashSession }>((sessions) => {
     const source = sessions.find((s) => s.id === fromSessionId);
     const tab = source?.tabs.find((t) => t.id === tabId);
@@ -225,7 +240,7 @@ export function moveTab(
     const next = sessions.map((session) => {
       if (session.id === fromSessionId) {
         const tabs = session.tabs.filter((t) => t.id !== tabId);
-        return { ...session, tabs };
+        return trashIfEmpty({ ...session, tabs }, now);
       }
       if (session.id === toSessionId) {
         if (session.tabs.some((t) => t.id === tabId)) return session; // guard against dup
@@ -261,7 +276,9 @@ export function createGroupFromTab(
     if (!source || !tab) return undefined;
 
     const withoutTab = current.map((s) =>
-      s.id === fromSessionId ? { ...s, tabs: s.tabs.filter((t) => t.id !== tabId) } : s,
+      s.id === fromSessionId
+        ? trashIfEmpty({ ...s, tabs: s.tabs.filter((t) => t.id !== tabId) }, Date.now())
+        : s,
     );
     const idx = withoutTab.findIndex((s) => s.id === fromSessionId);
     const created: StashSession = { ...newSession, tabs: [tab] };

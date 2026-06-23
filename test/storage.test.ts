@@ -119,24 +119,27 @@ describe("rename", () => {
 });
 
 describe("normalization", () => {
-  it("drops malformed tabs and empty non-trash sessions", () => {
+  it("drops malformed tabs but keeps empty (manually-created) groups", () => {
     const cleaned = normalizeSessions([
       { id: "ok", name: "Good", createdAt: 1, tabs: [{ url: "https://a.com", title: "A" }, { url: "chrome://x" }, { foo: 1 }] },
       { id: "empty", name: "Empty", createdAt: 1, tabs: [{ url: "chrome://internal" }] },
       "garbage",
       null,
     ]);
-    expect(cleaned).toHaveLength(1);
-    expect(cleaned[0].tabs).toHaveLength(1);
-    expect(cleaned[0].tabs[0].url).toBe("https://a.com");
+    // "ok" keeps its one valid tab; "empty" survives as a 0-tab group — the user
+    // may have created it empty to fill later. Only garbage/null are discarded.
+    expect(cleaned.map((s) => s.id)).toEqual(["ok", "empty"]);
+    expect(cleaned[0].tabs.map((t) => t.url)).toEqual(["https://a.com"]);
+    expect(cleaned[1].tabs).toHaveLength(0);
   });
 
-  it("mints ids and coerces missing fields", () => {
-    const [s] = normalizeSessions([{ tabs: [{ url: "https://a.com" }] }]);
-    expect(s.id).toBeTypeOf("string");
-    expect(s.id.length).toBeGreaterThan(0);
+  it("coerces missing fields and mints tab ids", () => {
+    const [s] = normalizeSessions([{ id: "s1", tabs: [{ url: "https://a.com" }] }]);
+    expect(s.id).toBe("s1");
     expect(s.name).toBeTypeOf("string");
+    expect(s.name.length).toBeGreaterThan(0);
     expect(s.tabs[0].id).toBeTypeOf("string");
+    expect(s.tabs[0].id.length).toBeGreaterThan(0);
   });
 });
 

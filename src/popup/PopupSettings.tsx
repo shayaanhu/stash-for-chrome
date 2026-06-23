@@ -99,7 +99,8 @@ export function PopupSettings({
       initial={reduceMotion ? false : { x: "100%" }}
       animate={{ x: 0 }}
       exit={reduceMotion ? { opacity: 0 } : { x: "100%" }}
-      transition={{ type: "spring", stiffness: 420, damping: 38 }}
+      transition={reduceMotion ? { duration: 0 } : { duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
+      style={{ willChange: "transform" }}
       className="paper-bg absolute inset-0 z-30 flex flex-col text-ink"
     >
       <header className="flex items-center gap-3 px-4 pb-3 pt-4">

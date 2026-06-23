@@ -72,6 +72,25 @@ function isSavableChromeTabUrl(url: string | undefined): boolean {
   return url.startsWith("http://") || url.startsWith("https://") || url.startsWith("file://");
 }
 
+/**
+ * One pointer sensor, two activation styles. dnd-kit allows a single activation
+ * constraint per sensor, but the active node's data tells us what's being
+ * dragged — so we pick the rule per draggable:
+ *  • group cards (type "session") → press-and-hold 0.5s, so a tap only expands;
+ *  • tab rows / everything else   → a small drag picks up instantly, so moving a
+ *    tab between groups feels immediate while a tap still restores it.
+ */
+class MixedActivationPointerSensor extends PointerSensor {
+  constructor(props: ConstructorParameters<typeof PointerSensor>[0]) {
+    const type = props.activeNode?.data?.current?.type as string | undefined;
+    const activationConstraint =
+      type === "session"
+        ? { delay: 500, tolerance: 8 }
+        : { distance: 6 };
+    super({ ...props, options: { ...props.options, activationConstraint } });
+  }
+}
+
 export function PopupApp() {
   const reduceMotion = useReducedMotion();
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -110,12 +129,16 @@ export function PopupApp() {
   const pointerYRef = useRef(0);
   const initialPointerYRef = useRef(0);
 
-  // A small activation distance lets a plain click still restore a tab — only a
-  // deliberate drag (>6px) starts moving it.
+  // Group cards hold-to-drag (0.5s) so a tap just expands; tab rows drag on a
+  // small movement so moving a tab between groups stays instant. See the sensor.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(MixedActivationPointerSensor),
     useSensor(KeyboardSensor),
   );
+
+  // True while a real dnd drag (group reorder / tab move) is underway, so the
+  // marquee selection stands down — the two pointer gestures never run at once.
+  const dragActiveRef = useRef(false);
 
   // A single save fires several storage writes + an explicit refresh in quick
   // succession. Coalesce them into one trailing reload so the heavy
@@ -257,7 +280,6 @@ export function PopupApp() {
     setEditingId(session.id);
     setDraftName(session.name);
     setOriginalName(session.name);
-    setExpandedIds((cur) => new Set(cur).add(session.id));
   }
 
   // ── Open Tabs selection ──────────────────────────────────────────────────────
@@ -379,6 +401,12 @@ export function PopupApp() {
     const ids = [...selectedSessionIds];
     if (ids.length === 0) return;
     const removed = sessions.filter((s) => ids.includes(s.id));
+    // Optimistic: in trash, drop them; in the library, send them to trash.
+    const idSet = new Set(ids);
+    setSessions(prev => showTrash
+      ? prev.filter(s => !idSet.has(s.id))
+      : prev.map(s => idSet.has(s.id) ? { ...s, deletedAt: Date.now() } : s));
+    setSelectedSessionIds(new Set());
     for (const id of ids) {
       await sendBackgroundRequest(
         showTrash
@@ -386,7 +414,6 @@ export function PopupApp() {
           : { type: "SOFT_DELETE_SESSION", sessionId: id },
       );
     }
-    setSelectedSessionIds(new Set());
     await reload();
     if (showTrash) {
       toast.success(`Deleted ${ids.length} ${ids.length === 1 ? "group" : "groups"}.`);
@@ -409,6 +436,7 @@ export function PopupApp() {
   }, []);
 
   function onDragStart(event: DragStartEvent) {
+    dragActiveRef.current = true;
     const type = event.active.data.current?.type as string | undefined;
     if (type === "session") {
       setActiveSession((event.active.data.current?.session as StashSession | undefined) ?? null);
@@ -498,10 +526,12 @@ export function PopupApp() {
         // updater, which React runs asynchronously) — otherwise the request fires
         // with an empty order, applySessionOrder falls back to newest-first, and
         // the brand-new group shoots to the top. New group sits right after source.
-        const updated = sessions.map(s => s.id === data.fromSessionId
-          ? { ...s, tabs: s.tabs.filter(t => t.id !== data.tabId) }
-          : s
-        );
+        const updated = sessions.map(s => {
+          if (s.id !== data.fromSessionId) return s;
+          const tabs = s.tabs.filter(t => t.id !== data.tabId);
+          // Mirror storage: emptying the source sends it to trash, not a ·0 shell.
+          return tabs.length === 0 && !s.deletedAt ? { ...s, tabs, deletedAt: Date.now() } : { ...s, tabs };
+        });
         const idx = updated.findIndex(s => s.id === data.fromSessionId);
         const result = idx === -1
           ? [...updated, newSession]
@@ -540,6 +570,7 @@ export function PopupApp() {
   }
 
   async function onDragEnd(event: DragEndEvent) {
+    dragActiveRef.current = false;
     const { active, over } = event;
     const type = active.data.current?.type as string | undefined;
 
@@ -697,6 +728,9 @@ export function PopupApp() {
   }
 
   async function handleDeleteSession(session: StashSession) {
+    // Optimistic: send it to trash locally so the card animates out immediately,
+    // independent of how quickly the background write + reload land.
+    setSessions(prev => prev.map(s => s.id === session.id ? { ...s, deletedAt: Date.now() } : s));
     await sendBackgroundRequest({ type: "SOFT_DELETE_SESSION", sessionId: session.id });
     await reload();
     toast.success("Moved to trash.", {
@@ -709,6 +743,7 @@ export function PopupApp() {
   }
 
   async function handleDeleteForever(session: StashSession) {
+    setSessions(prev => prev.filter(s => s.id !== session.id)); // optimistic
     await sendBackgroundRequest({ type: "DELETE_FOREVER", sessionId: session.id });
     await reload();
     toast.success("Deleted forever.", {
@@ -718,6 +753,8 @@ export function PopupApp() {
 
   async function handleEmptyTrash() {
     const trashSessions = sessions.filter((s) => s.deletedAt);
+    setSessions(prev => prev.filter(s => !s.deletedAt)); // optimistic
+    setShowTrash(false); // never strand the user in an empty trash with no way back
     await sendBackgroundRequest({ type: "EMPTY_TRASH" });
     await reload();
     toast.success("Trash emptied.", {
@@ -740,11 +777,17 @@ export function PopupApp() {
   async function handleRemoveTab(sessionId: string, tabId: string) {
     const src = sessions.find(s => s.id === sessionId);
     const willBeEmpty = src ? src.tabs.filter(t => t.id !== tabId).length === 0 : false;
-    await sendBackgroundRequest({ type: "REMOVE_TAB", sessionId, tabId });
-    await reload();
+    // Optimistic: drop the tab now, and trash the group if that was its last tab.
+    setSessions(prev => prev.map(s => {
+      if (s.id !== sessionId) return s;
+      const tabs = s.tabs.filter(t => t.id !== tabId);
+      return tabs.length === 0 && !s.deletedAt ? { ...s, tabs, deletedAt: Date.now() } : { ...s, tabs };
+    }));
     if (willBeEmpty) {
       setExpandedIds(cur => { const n = new Set(cur); n.delete(sessionId); return n; });
     }
+    await sendBackgroundRequest({ type: "REMOVE_TAB", sessionId, tabId });
+    await reload();
   }
 
   function toggleExpanded(id: string) {
@@ -863,8 +906,9 @@ export function PopupApp() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
+                className="flex min-h-full flex-col"
               >
-                <div>
+                <div className="flex flex-1 flex-col">
                   {topView === "open" ? (
                     <OpenTabsView
                       tabs={filteredOpenTabs}
@@ -879,28 +923,13 @@ export function PopupApp() {
                     />
                   ) : (
                     <>
-                      <div className="mb-2 flex items-center justify-between">
-                        {trashCount > 0 ? (
-                          <motion.button
-                            type="button"
-                            onClick={() => setShowTrash((v) => !v)}
-                            whileHover={{ y: -1 }}
-                            whileTap={{ scale: 0.95, y: 0 }}
-                            transition={{ type: "spring", stiffness: 480, damping: 26 }}
-                            className={cn(
-                              "flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-body text-[12px] font-medium shadow-[var(--shadow-sm)] transition-[box-shadow,color] duration-[var(--dur-fast)] hover:shadow-[var(--shadow-md)]",
-                              showTrash
-                                ? "border-accent/40 bg-accent/[0.06] text-accent-text"
-                                : "border-border bg-surface text-muted hover:text-ink",
-                            )}
-                          >
-                            <Trash2 size={12} />
-                            {showTrash ? "Back to stash" : "Trash"}
-                            <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-ink/[0.07] px-1 font-mono text-[10px] font-semibold text-muted-2">
-                              {trashCount}
-                            </span>
-                          </motion.button>
-                        ) : <div />}
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <StashSubTabs
+                          showTrash={showTrash}
+                          onChange={setShowTrash}
+                          savedCount={activeCount}
+                          trashCount={trashCount}
+                        />
 
                         {showTrash ? (
                           trashCount > 0 ? (
@@ -939,7 +968,7 @@ export function PopupApp() {
                         onDragMove={onDragMove}
                         onDragEnd={onDragEnd}
                         onDragOver={onDragOver}
-                        onDragCancel={() => { clearNewGroupDrag(); setActiveTab(null); setActiveSession(null); }}
+                        onDragCancel={() => { dragActiveRef.current = false; clearNewGroupDrag(); setActiveTab(null); setActiveSession(null); }}
                       >
                         {visibleSessions.length > 0 ? (
                           <SortableContext
@@ -948,7 +977,10 @@ export function PopupApp() {
                           >
                             <MarqueeArea
                               enabled
+                              threshold={10}
+                              suspendRef={dragActiveRef}
                               onMarquee={(ids) => setSelectedSessionIds(new Set(ids))}
+                              className="flex-1"
                             >
                               <SessionList
                                 sessions={visibleSessions}
@@ -1202,12 +1234,11 @@ function SessionCard({
     <motion.article
       ref={setNodeRef}
       data-marquee-id={session.id}
-      data-marquee-skip
       {...(viewMode === "library" ? { ...attributes, ...listeners } : {})}
       style={sortStyle}
       initial={reduceMotion ? false : { opacity: 0, y: 10 }}
       animate={{ opacity: isDragging ? 0 : 1, y: 0 }}
-      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.82, x: 24, transition: { duration: 0.2, ease: [0.4, 0, 1, 1] } }}
+      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.9, transition: { duration: 0.18, ease: [0.4, 0, 1, 1] } }}
       whileHover={reduceMotion || isDragging || isAnyDragging ? undefined : { y: -3, transition: { type: "spring", stiffness: 420, damping: 26 } }}
       whileTap={reduceMotion || isAnyDragging ? undefined : { scale: 0.992 }}
       transition={{
@@ -1218,17 +1249,19 @@ function SessionCard({
       className={cn(
         // Accent spine is an inset box-shadow so it follows the rounded edge the full height (no corner clipping)
         "group relative select-none overflow-hidden rounded-[var(--radius-card)] border bg-surface shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-sm)] transition-[box-shadow,border-color,background-color] duration-[var(--dur-base)] hover:border-border-strong hover:shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-md)]",
-        viewMode === "library" && "cursor-grab touch-none active:cursor-grabbing",
+        viewMode === "library" && "touch-none",
         isTabDropTarget ? "border-accent bg-accent/[0.05] ring-2 ring-accent/55" : "border-border",
         isReorderTarget && "ring-2 ring-border-strong border-border-strong",
         isFresh && "ring-2 ring-accent/30",
         selected && "border-accent bg-accent/[0.04] ring-2 ring-accent/45",
       )}
     >
-      {/* Card header — single row */}
+      {/* Card header — single row. The whole row toggles expand; interactive
+          children (checkbox, chevron, actions, rename field) stop propagation. */}
       <div
+        onClick={() => { if (!isEditing) onToggleExpanded(session.id); }}
         className={cn(
-          "flex items-center gap-2 pl-2.5 pr-2.5",
+          "flex cursor-pointer items-center gap-2 pl-2.5 pr-2.5",
           compactMode ? "py-1.5" : "py-2.5",
         )}
       >
@@ -1252,7 +1285,7 @@ function SessionCard({
         <motion.button
           type="button"
           aria-label={isExpanded ? "Collapse" : "Expand"}
-          onClick={() => onToggleExpanded(session.id)}
+          onClick={(e) => { e.stopPropagation(); onToggleExpanded(session.id); }}
           whileHover={{ scale: 1.12 }}
           whileTap={{ scale: 0.9 }}
           transition={{ type: "spring", stiffness: 500, damping: 22 }}
@@ -1267,15 +1300,9 @@ function SessionCard({
           </motion.span>
         </motion.button>
 
-        {/* Favicons (click to expand; also a marquee start surface) */}
+        {/* Favicons (click bubbles to the header → expand) */}
         {session.tabs.length > 0 && (
-          <div
-            role="button"
-            tabIndex={-1}
-            aria-label={isExpanded ? "Collapse" : "Expand"}
-            onClick={() => onToggleExpanded(session.id)}
-            className="shrink-0 cursor-pointer"
-          >
+          <div className="shrink-0">
             <FaviconSpine tabs={session.tabs} isRestoring={isRestoring} reduceMotion={reduceMotion} />
           </div>
         )}
@@ -1283,7 +1310,7 @@ function SessionCard({
         {/* Name + count */}
         <div className="min-w-0 flex-1">
           {isEditing ? (
-            <form onSubmit={(e) => { e.preventDefault(); void onRenameSubmit(); }}>
+            <form onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); void onRenameSubmit(); }}>
               <textarea
                 data-marquee-skip
                 ref={(el) => {
@@ -1309,12 +1336,7 @@ function SessionCard({
               />
             </form>
           ) : (
-            <div
-              role="button"
-              tabIndex={-1}
-              className="flex w-full cursor-pointer items-center gap-1.5 text-left"
-              onClick={() => onToggleExpanded(session.id)}
-            >
+            <div className="flex w-full items-center gap-1.5 text-left">
               {isFresh && <FreshDot reduceMotion={reduceMotion} />}
               <span className="truncate font-display display-title text-[14px] font-semibold leading-tight text-ink select-none">
                 {session.name}
@@ -1325,7 +1347,7 @@ function SessionCard({
         </div>
 
         {/* Actions + restore */}
-        <div className="flex shrink-0 items-center gap-0.5">
+        <div onClick={(e) => e.stopPropagation()} className="flex shrink-0 items-center gap-0.5">
           <div className="pointer-events-none flex items-center opacity-0 transition-opacity duration-[var(--dur-base)] group-hover:pointer-events-auto group-hover:opacity-100">
             {viewMode === "trash" ? (
               <ActionBtn label="Delete forever" danger onClick={() => void onDeleteForever(session)}>
@@ -1373,8 +1395,8 @@ function SessionCard({
             className="m-0 list-none overflow-hidden border-t border-border p-1.5"
           >
             {session.tabs.length === 0 ? (
-              <li className="flex items-center justify-center py-4 font-body text-[12px] text-muted-2">
-                Drop tabs here to add them
+              <li className="flex items-center justify-center py-2 font-body text-[11px] text-muted-2">
+                Drop tabs here
               </li>
             ) : (
               session.tabs.map((tab) => (
@@ -1449,12 +1471,18 @@ function TabRow({
    rectangle; any element marked [data-marquee-id] it touches is selected.
    A press without movement is a plain click (handlers fire normally). */
 function MarqueeArea({
-  enabled, onMarquee, className, children,
+  enabled, onMarquee, className, children, threshold = 5, suspendRef,
 }: {
   enabled: boolean;
   onMarquee: (ids: string[]) => void;
   className?: string;
   children: React.ReactNode;
+  // Distance the pointer must travel before a marquee starts. Kept above the
+  // dnd hold's cancel `tolerance` so a press-drag aborts the hold first, then
+  // becomes a marquee — the two never trigger off the same pixel.
+  threshold?: number;
+  // When this ref reads true a real dnd drag owns the pointer; stand down.
+  suspendRef?: { current: boolean };
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const cbRef = useRef(onMarquee);
@@ -1479,7 +1507,7 @@ function MarqueeArea({
   }
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    if (!enabled || e.button !== 0) return;
+    if (!enabled || e.button !== 0 || suspendRef?.current) return;
     const target = e.target as HTMLElement;
     if (target.closest("button, a, input, textarea, [data-marquee-skip]")) return;
     originRef.current = { x: e.clientX, y: e.clientY, pointerId: e.pointerId };
@@ -1487,12 +1515,14 @@ function MarqueeArea({
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    // A dnd hold just won the gesture — drop any pending marquee origin.
+    if (suspendRef?.current) { originRef.current = null; return; }
     const o = originRef.current;
     if (!o) return;
     const dx = e.clientX - o.x;
     const dy = e.clientY - o.y;
     if (!draggingRef.current) {
-      if (Math.hypot(dx, dy) < 5) return;
+      if (Math.hypot(dx, dy) < threshold) return;
       draggingRef.current = true;
       // Capture so we keep receiving move/up even as the pointer leaves rows.
       try { ref.current?.setPointerCapture(o.pointerId); } catch { /* noop */ }
@@ -1596,6 +1626,65 @@ function ViewSwitch({
   );
 }
 
+/* ── Stash sub-tabs: Saved ⇆ Trash, sliding pill (secondary to the top nav) ─── */
+function StashSubTabs({
+  showTrash, onChange, savedCount, trashCount,
+}: {
+  showTrash: boolean;
+  onChange: (trash: boolean) => void;
+  savedCount: number;
+  trashCount: number;
+}) {
+  const items: { key: boolean; label: string; count: number; icon: React.ReactNode }[] = [
+    { key: false, label: "Saved", count: savedCount, icon: <Layers size={12} /> },
+    { key: true, label: "Trash", count: trashCount, icon: <Trash2 size={12} /> },
+  ];
+  return (
+    <div className="relative flex items-center gap-0.5 rounded-full border border-border-strong/50 bg-surface-muted p-0.5 shadow-[inset_0_1px_2px_rgba(20,35,80,0.10)]">
+      {items.map((it) => {
+        const active = showTrash === it.key;
+        const danger = it.key; // the Trash segment tints red when active
+        return (
+          <button
+            key={String(it.key)}
+            type="button"
+            onClick={() => onChange(it.key)}
+            className="relative flex h-7 items-center justify-center gap-1.5 rounded-full px-3 text-[12px] font-semibold active:scale-[0.98]"
+          >
+            {active && (
+              <motion.span
+                layoutId="stash-subtab-pill"
+                transition={{ type: "spring", stiffness: 520, damping: 38 }}
+                className={cn(
+                  "absolute inset-0 rounded-full",
+                  danger
+                    ? "bg-[image:linear-gradient(180deg,#FBE7E2_0%,#F6D8D0_100%)] shadow-[0_1px_2px_rgba(80,20,20,0.14),inset_0_1px_0_rgba(255,255,255,0.8)]"
+                    : "bg-[image:linear-gradient(180deg,#FFFFFF_0%,var(--color-surface-subtle)_100%)] shadow-[0_1px_2px_rgba(20,35,80,0.13),inset_0_1px_0_rgba(255,255,255,0.9)]",
+                )}
+              />
+            )}
+            <span className={cn(
+              "relative z-10 flex items-center gap-1.5 transition-colors duration-[var(--dur-fast)]",
+              active ? (danger ? "text-danger-ink" : "text-ink") : "text-muted hover:text-ink",
+            )}>
+              {it.icon}
+              {it.label}
+              {it.count > 0 && (
+                <span className={cn(
+                  "inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-[10px] font-semibold leading-none",
+                  active && danger ? "bg-danger/15 text-danger-ink" : "bg-ink/[0.07] text-muted-2",
+                )}>
+                  {it.count}
+                </span>
+              )}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ── Open Tabs view: pick tabs to stash ────────────────────────── */
 function OpenTabsView({
   tabs, selectedIds, onToggle, onMarqueeSelect, onToggleAll, allSelected, hasAnyTabs, isFiltering, reduceMotion,
@@ -1638,7 +1727,7 @@ function OpenTabsView({
   }
 
   return (
-    <div className="pb-1">
+    <div className="flex min-h-full flex-1 flex-col pb-1">
       {/* Select-all row */}
       <div className="mb-1.5 flex items-center justify-between px-1">
         <button
@@ -1654,7 +1743,7 @@ function OpenTabsView({
         </span>
       </div>
 
-      <MarqueeArea enabled onMarquee={onMarquee} className="min-h-[340px] rounded-[var(--radius-card)] border border-border bg-surface p-1.5 shadow-[var(--shadow-sm)]">
+      <MarqueeArea enabled onMarquee={onMarquee} className="flex-1 min-h-[340px] rounded-[var(--radius-card)] border border-border bg-surface p-1.5 shadow-[var(--shadow-sm)]">
         <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
           {tabs.map((tab) => (
             <OpenTabSelectRow
@@ -1907,7 +1996,10 @@ function applyTabMove(
   return sessions.map((session) => {
     if (session.id === fromSessionId) {
       const tabs = session.tabs.filter((t) => t.id !== tabId);
-      return { ...session, tabs };
+      // Mirror storage: a group emptied by the move goes to trash, not left as ·0.
+      return tabs.length === 0 && !session.deletedAt
+        ? { ...session, tabs, deletedAt: Date.now() }
+        : { ...session, tabs };
     }
     if (session.id === toSessionId) {
       if (session.tabs.some((t) => t.id === tabId)) return session;

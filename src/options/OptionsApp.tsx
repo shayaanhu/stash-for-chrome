@@ -1,4 +1,4 @@
-import { AppWindow, Download, Keyboard, LayoutList, PanelTopClose, Rows3, Upload } from "lucide-react";
+import { AppWindow, Download, Keyboard, PanelTopClose, Upload } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import type { ChangeEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
@@ -30,11 +30,6 @@ export function OptionsApp() {
 
   async function setSaveTarget(saveTarget: SaveTarget) {
     setSettings(await updateSettings({ saveTarget }));
-    flash("Saved");
-  }
-
-  async function setCompactMode(compactMode: boolean) {
-    setSettings(await updateSettings({ compactMode }));
     flash("Saved");
   }
 
@@ -131,22 +126,6 @@ export function OptionsApp() {
               All windows
             </SegmentButton>
           </div>
-        </SettingGroup>
-
-        <SettingGroup
-          icon={settings.compactMode ? <Rows3 size={18} /> : <LayoutList size={18} />}
-          title="Density"
-          description="Use tighter rows in the popup."
-        >
-          <label className="flex min-h-11 items-center justify-between gap-4 rounded-[var(--radius-card)] border border-border bg-surface-subtle px-4 text-sm font-semibold">
-            <span>Compact mode</span>
-            <input
-              type="checkbox"
-              checked={settings.compactMode}
-              onChange={(event) => void setCompactMode(event.target.checked)}
-              className="h-[18px] w-[18px] accent-accent"
-            />
-          </label>
         </SettingGroup>
 
         <SettingGroup

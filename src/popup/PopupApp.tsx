@@ -4,7 +4,6 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
-  GripVertical,
   Layers,
   LayoutGrid,
   Loader2,
@@ -42,9 +41,9 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { FormEvent, KeyboardEvent } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { PopupSettings } from "./PopupSettings";
@@ -96,7 +95,6 @@ export function PopupApp() {
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [sessions, setSessions] = useState<StashSession[]>([]);
   const [saveTarget, setSaveTarget] = useState<SaveTarget>("current-window");
-  const [compactMode, setCompactMode] = useState(false);
   const [query, setQuery] = useState("");
   const [openFilter, setOpenFilter] = useState("");
   const [topView, setTopView] = useState<TopView>("open");
@@ -110,14 +108,12 @@ export function PopupApp() {
   const [draftName, setDraftName] = useState("");
   const [originalName, setOriginalName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [justSaved, setJustSaved] = useState(false);
   const [freshlySavedId, setFreshlySavedId] = useState<string | null>(null);
   const [saveBurst, setSaveBurst] = useState<SaveBurst | null>(null);
   const [restoreBurstId, setRestoreBurstId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<StashTab | null>(null);
   const [activeSession, setActiveSession] = useState<StashSession | null>(null);
   const [openTabs, setOpenTabs] = useState<chrome.tabs.Tab[]>([]);
-  const [openTabsExpanded, setOpenTabsExpanded] = useState(false);
   const [isSessionTabDragging, setIsSessionTabDragging] = useState(false);
   const [isOpenTabDragging, setIsOpenTabDragging] = useState(false);
   const [newGroupProgress, setNewGroupProgress] = useState(0);
@@ -151,7 +147,6 @@ export function PopupApp() {
       const [nextSessions, nextSettings, nextOrder] = await Promise.all([getSessions(), getSettings(), getSessionOrder()]);
       setSessions(applySessionOrder(nextSessions, nextOrder));
       setSaveTarget(nextSettings.saveTarget);
-      setCompactMode(nextSettings.compactMode);
     }, 50);
   }, []);
 
@@ -171,14 +166,36 @@ export function PopupApp() {
 
   useEffect(() => {
     void loadOpenTabs();
-    const onTabUpdate = () => void loadOpenTabs();
-    chrome.tabs.onUpdated.addListener(onTabUpdate);
-    chrome.tabs.onRemoved.addListener(onTabUpdate);
-    chrome.tabs.onCreated.addListener(onTabUpdate);
+    // tabs.onUpdated is extremely chatty (every favicon/title/loading tick). Only
+    // react to changes that affect what we render, and coalesce bursts into one
+    // query so a page loading in the background can't stutter the popup.
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const schedule = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { timer = null; void loadOpenTabs(); }, 150);
+    };
+    const onUpdated = (
+      _id: number,
+      info: { url?: string; title?: string; favIconUrl?: string; status?: string; pinned?: boolean },
+    ) => {
+      if (
+        info.url !== undefined ||
+        info.title !== undefined ||
+        info.favIconUrl !== undefined ||
+        info.status === "complete" ||
+        info.pinned !== undefined
+      ) {
+        schedule();
+      }
+    };
+    chrome.tabs.onUpdated.addListener(onUpdated);
+    chrome.tabs.onRemoved.addListener(schedule);
+    chrome.tabs.onCreated.addListener(schedule);
     return () => {
-      chrome.tabs.onUpdated.removeListener(onTabUpdate);
-      chrome.tabs.onRemoved.removeListener(onTabUpdate);
-      chrome.tabs.onCreated.removeListener(onTabUpdate);
+      if (timer) clearTimeout(timer);
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      chrome.tabs.onRemoved.removeListener(schedule);
+      chrome.tabs.onCreated.removeListener(schedule);
     };
   }, [loadOpenTabs]);
 
@@ -194,8 +211,11 @@ export function PopupApp() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const activeCount = sessions.filter((s) => !s.deletedAt).length;
-  const trashCount  = sessions.filter((s) =>  s.deletedAt).length;
+  const { activeCount, trashCount } = useMemo(() => {
+    let active = 0, trashed = 0;
+    for (const s of sessions) s.deletedAt ? trashed++ : active++;
+    return { activeCount: active, trashCount: trashed };
+  }, [sessions]);
 
   const visibleSessions = useMemo(() => {
     return sessions
@@ -236,13 +256,11 @@ export function PopupApp() {
     const saved = response.session;
     setSaveBurst({ id: saved.id, tabs: saved.tabs.slice(0, 4) });
     setFreshlySavedId(saved.id);
-    setJustSaved(true);
     setExpandedIds((cur) => new Set(cur).add(saved.id));
     setTopView("stash");
     setShowTrash(false);
     await reload();
 
-    setTimeout(() => setJustSaved(false),     reduceMotion ? 0 : 1400);
     setTimeout(() => setSaveBurst(null),      reduceMotion ? 0 : 650);
     setTimeout(() => setFreshlySavedId(null), reduceMotion ? 0 : 1800);
     setTimeout(
@@ -283,25 +301,15 @@ export function PopupApp() {
   }
 
   // ── Open Tabs selection ──────────────────────────────────────────────────────
-  function toggleTabSelected(tabId: number) {
+  // Stable so the memoized open-tab rows don't re-render on unrelated updates.
+  const toggleTabSelected = useCallback((tabId: number) => {
     setSelectedTabIds((prev) => {
       const next = new Set(prev);
       if (next.has(tabId)) next.delete(tabId);
       else next.add(tabId);
       return next;
     });
-  }
-
-  // Explicit set (used by drag-to-paint selection so a drag commits one value).
-  function setTabSelected(tabId: number, value: boolean) {
-    setSelectedTabIds((prev) => {
-      if (value === prev.has(tabId)) return prev;
-      const next = new Set(prev);
-      if (value) next.add(tabId);
-      else next.delete(tabId);
-      return next;
-    });
-  }
+  }, []);
 
   const filteredIds = useMemo(
     () => filteredOpenTabs.map((t) => t.id).filter((id): id is number => id != null),
@@ -853,36 +861,80 @@ export function PopupApp() {
     }
   }
 
+  // The group list is memoized so unrelated state churn (open-tab polling, the
+  // Open Tabs filter, selection in the other view) can't re-render it. For the
+  // memo to hold, every callback it receives must keep a stable identity — so we
+  // funnel them through a ref that always points at the latest closures.
+  const liveHandlers = {
+    onToggleSelected: toggleSessionSelected,
+    onDraftNameChange: (name: string) => {
+      setDraftName(name);
+      setSessions((prev) => prev.map((s) => (s.id === editingId ? { ...s, name } : s)));
+    },
+    onToggleExpanded: toggleExpanded,
+    onRenameStart: startRename,
+    onRenameSubmit: submitRename,
+    onRenameKeyDown: handleRenameKeyDown,
+    onRestoreAll: handleRestoreAll,
+    onRestoreTab: handleRestoreTab,
+    onDeleteSession: handleDeleteSession,
+    onDeleteForever: handleDeleteForever,
+    onRestoreDeleted: handleRestoreDeleted,
+    onRemoveTab: handleRemoveTab,
+  };
+  const liveHandlersRef = useRef(liveHandlers);
+  liveHandlersRef.current = liveHandlers;
+  const sessionActions = useMemo(() => ({
+    onToggleSelected: (id: string) => liveHandlersRef.current.onToggleSelected(id),
+    onDraftNameChange: (n: string) => liveHandlersRef.current.onDraftNameChange(n),
+    onToggleExpanded: (id: string) => liveHandlersRef.current.onToggleExpanded(id),
+    onRenameStart: (s: StashSession) => liveHandlersRef.current.onRenameStart(s),
+    onRenameSubmit: (e?: FormEvent<HTMLFormElement>) => liveHandlersRef.current.onRenameSubmit(e),
+    onRenameKeyDown: (e: KeyboardEvent<HTMLInputElement>) => liveHandlersRef.current.onRenameKeyDown(e),
+    onRestoreAll: (s: StashSession) => liveHandlersRef.current.onRestoreAll(s),
+    onRestoreTab: (t: StashTab) => liveHandlersRef.current.onRestoreTab(t),
+    onDeleteSession: (s: StashSession) => liveHandlersRef.current.onDeleteSession(s),
+    onDeleteForever: (s: StashSession) => liveHandlersRef.current.onDeleteForever(s),
+    onRestoreDeleted: (id: string) => liveHandlersRef.current.onRestoreDeleted(id),
+    onRemoveTab: (sid: string, tid: string) => liveHandlersRef.current.onRemoveTab(sid, tid),
+  }), []);
+
+  const visibleSessionIds = useMemo(() => visibleSessions.map((s) => s.id), [visibleSessions]);
+
   return (
     <TooltipProvider delayDuration={400}>
-      <main className={cn(
-        "paper-bg relative flex h-[580px] w-[400px] flex-col overflow-hidden text-ink",
-        compactMode && "is-compact",
-      )}>
+      <main className="paper-bg relative flex h-[580px] w-[400px] flex-col overflow-hidden text-ink">
 
-        {/* ── Compact top: view toggle + settings + search ──── */}
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex flex-col gap-2 px-4 pb-2 pt-3">
-            <div className="flex items-center gap-2">
-              <ViewSwitch
-                value={topView}
-                onChange={setTopView}
-                openCount={openTabs.length}
-                stashCount={activeCount}
-              />
-              <motion.button
-                type="button"
-                aria-label="Settings"
-                onClick={() => setShowSettings(true)}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-[image:linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-subtle)_100%)] text-muted shadow-[var(--shadow-raised)] transition-[box-shadow,color] duration-[var(--dur-fast)] hover:text-ink hover:shadow-[var(--shadow-raised-hover)]"
-                whileHover={{ y: -2, rotate: 35 }}
-                whileTap={{ scale: 0.9, y: 0 }}
-                transition={{ type: "spring", stiffness: 420, damping: 22 }}
-              >
-                <Settings size={16} />
-              </motion.button>
-            </div>
+        {/* ── Persistent top nav: stays put and clickable even while Settings is open ── */}
+        <div className="px-4 pb-2 pt-3">
+          <div className="flex items-center gap-2">
+            <ViewSwitch
+              value={topView}
+              onChange={(v) => { setTopView(v); setShowSettings(false); }}
+              openCount={openTabs.length}
+              stashCount={activeCount}
+            />
+            <motion.button
+              type="button"
+              aria-label={showSettings ? "Close settings" : "Settings"}
+              aria-pressed={showSettings}
+              onClick={() => setShowSettings((v) => !v)}
+              className={cn(
+                "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-[image:linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-subtle)_100%)] shadow-[var(--shadow-raised)] transition-[box-shadow,color] duration-[var(--dur-fast)] hover:shadow-[var(--shadow-raised-hover)]",
+                showSettings ? "border-accent/40 text-accent-text" : "border-border text-muted hover:text-ink",
+              )}
+              whileHover={{ y: -2, rotate: 35 }}
+              whileTap={{ scale: 0.9, y: 0 }}
+              transition={{ type: "spring", stiffness: 420, damping: 22 }}
+            >
+              <Settings size={16} />
+            </motion.button>
+          </div>
+        </div>
 
+        {/* ── Stage: search + content; Settings slides in over just this area ── */}
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <div className="px-4 pb-2">
             <label className="flex h-9 items-center gap-2.5 rounded-full border border-border bg-surface px-4 shadow-[var(--shadow-sm)] transition-[border-color,box-shadow] duration-[var(--dur-fast)] focus-within:border-accent/40 focus-within:shadow-[var(--shadow-md)]">
               <Search size={15} className="shrink-0 text-muted-2" />
               <input
@@ -904,7 +956,7 @@ export function PopupApp() {
                 key={topView}
                 initial={reduceMotion ? false : { opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
+                exit={{ opacity: 0, transition: { duration: 0.06 } }}
                 transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
                 className="flex min-h-full flex-col"
               >
@@ -972,7 +1024,7 @@ export function PopupApp() {
                       >
                         {visibleSessions.length > 0 ? (
                           <SortableContext
-                            items={visibleSessions.map((s) => s.id)}
+                            items={visibleSessionIds}
                             strategy={verticalListSortingStrategy}
                           >
                             <MarqueeArea
@@ -990,26 +1042,9 @@ export function PopupApp() {
                                 viewMode={listMode}
                                 freshlySavedId={freshlySavedId}
                                 restoreBurstId={restoreBurstId}
-                                compactMode={compactMode}
                                 reduceMotion={Boolean(reduceMotion)}
                                 selectedIds={selectedSessionIds}
-                                onToggleSelected={toggleSessionSelected}
-                                onDraftNameChange={(name) => {
-                                  setDraftName(name);
-                                  setSessions((prev) =>
-                                    prev.map((s) => (s.id === editingId ? { ...s, name } : s))
-                                  );
-                                }}
-                                onToggleExpanded={toggleExpanded}
-                                onRenameStart={startRename}
-                                onRenameSubmit={submitRename}
-                                onRenameKeyDown={handleRenameKeyDown}
-                                onRestoreAll={handleRestoreAll}
-                                onRestoreTab={handleRestoreTab}
-                                onDeleteSession={handleDeleteSession}
-                                onDeleteForever={handleDeleteForever}
-                                onRestoreDeleted={handleRestoreDeleted}
-                                onRemoveTab={handleRemoveTab}
+                                {...sessionActions}
                               />
                             </MarqueeArea>
                           </SortableContext>
@@ -1039,11 +1074,18 @@ export function PopupApp() {
               </motion.div>
             </AnimatePresence>
           </div>
+
+          {/* ── In-popup settings: slides over the stage; the top nav stays visible ── */}
+          <AnimatePresence>
+            {showSettings && (
+              <PopupSettings onClose={() => setShowSettings(false)} reduceMotion={Boolean(reduceMotion)} />
+            )}
+          </AnimatePresence>
         </div>
 
         {/* ── Sticky Stash CTA (Open Tabs view) ──────────────── */}
         <AnimatePresence>
-          {topView === "open" && selectedTabIds.size > 0 && (
+          {topView === "open" && selectedTabIds.size > 0 && !showSettings && (
             <StashFooter
               count={selectedTabIds.size}
               busy={isSaving}
@@ -1055,7 +1097,7 @@ export function PopupApp() {
 
         {/* ── Bulk action bar (Stash view, groups selected) ──── */}
         <AnimatePresence>
-          {topView === "stash" && selectedSessionIds.size > 0 && (
+          {topView === "stash" && selectedSessionIds.size > 0 && !showSettings && (
             <BulkActionBar
               count={selectedSessionIds.size}
               inTrash={showTrash}
@@ -1071,23 +1113,16 @@ export function PopupApp() {
           {saveBurst && <SaveBurstAnim burst={saveBurst} reduceMotion={Boolean(reduceMotion)} />}
         </AnimatePresence>
 
-        {/* ── In-popup settings ──────────────────────────────── */}
-        <AnimatePresence>
-          {showSettings && (
-            <PopupSettings onClose={() => setShowSettings(false)} reduceMotion={Boolean(reduceMotion)} />
-          )}
-        </AnimatePresence>
-
         <Toaster />
       </main>
     </TooltipProvider>
   );
 }
 
-/* ── Session list ──────────────────────────────────────────────── */
-function SessionList({
+/* ── Session list (memoized: unrelated app re-renders don't touch it) ─ */
+const SessionList = memo(function SessionList({
   sessions, expandedIds, editingId, draftName, viewMode,
-  freshlySavedId, restoreBurstId, compactMode, reduceMotion,
+  freshlySavedId, restoreBurstId, reduceMotion,
   selectedIds, onToggleSelected,
   onDraftNameChange, onToggleExpanded, onRenameStart, onRenameSubmit,
   onRenameKeyDown, onRestoreAll, onRestoreTab, onDeleteSession,
@@ -1100,7 +1135,6 @@ function SessionList({
   viewMode: ViewMode;
   freshlySavedId: string | null;
   restoreBurstId: string | null;
-  compactMode: boolean;
   reduceMotion: boolean;
   selectedIds: Set<string>;
   onToggleSelected: (id: string) => void;
@@ -1118,12 +1152,13 @@ function SessionList({
 }) {
   const selectionActive = selectedIds.size > 0;
   return (
-    <LayoutGroup>
-      <motion.section
-        className="grid gap-2"
-        aria-label={viewMode === "trash" ? "Deleted sessions" : "Saved sessions"}
-      >
-        <AnimatePresence initial={false}>
+    <motion.section
+      className="relative grid gap-2"
+      aria-label={viewMode === "trash" ? "Deleted sessions" : "Saved sessions"}
+    >
+        {/* popLayout pulls an exiting card out of flow immediately so the cards
+            below slide up to fill the gap (e.g. when a group is emptied → trashed). */}
+        <AnimatePresence initial={false} mode="popLayout">
           {sessions.map((session, i) => (
             <SessionCard
               key={session.id}
@@ -1134,12 +1169,11 @@ function SessionList({
               isFresh={freshlySavedId === session.id}
               isRestoring={restoreBurstId === session.id}
               viewMode={viewMode}
-              draftName={draftName}
-              compactMode={compactMode}
+              draftName={editingId === session.id ? draftName : ""}
               reduceMotion={reduceMotion}
               selected={selectedIds.has(session.id)}
               selectionActive={selectionActive}
-              onToggleSelected={() => onToggleSelected(session.id)}
+              onToggleSelected={onToggleSelected}
               onDraftNameChange={onDraftNameChange}
               onToggleExpanded={onToggleExpanded}
               onRenameStart={onRenameStart}
@@ -1154,15 +1188,16 @@ function SessionList({
             />
           ))}
         </AnimatePresence>
-      </motion.section>
-    </LayoutGroup>
+    </motion.section>
   );
-}
+});
 
-/* ── One session card (drop target for tabs, draggable for reorder) ─ */
-function SessionCard({
+/* ── One session card (drop target for tabs, draggable for reorder) ─
+   Memoized so a marquee drag (which rewrites the selection set on every pointer
+   move) only re-renders the cards whose `selected` actually flipped. */
+const SessionCard = memo(forwardRef(function SessionCard({
   session, index: i, isExpanded, isEditing, isFresh, isRestoring, viewMode,
-  draftName, compactMode, reduceMotion, selected, selectionActive,
+  draftName, reduceMotion, selected, selectionActive,
   onToggleSelected,
   onDraftNameChange, onToggleExpanded, onRenameStart, onRenameSubmit,
   onRenameKeyDown, onRestoreAll, onRestoreTab, onDeleteSession,
@@ -1176,11 +1211,10 @@ function SessionCard({
   isRestoring: boolean;
   viewMode: ViewMode;
   draftName: string;
-  compactMode: boolean;
   reduceMotion: boolean;
   selected: boolean;
   selectionActive: boolean;
-  onToggleSelected: () => void;
+  onToggleSelected: (id: string) => void;
   onDraftNameChange: (n: string) => void;
   onToggleExpanded: (id: string) => void;
   onRenameStart: (s: StashSession) => void;
@@ -1192,7 +1226,7 @@ function SessionCard({
   onDeleteForever: (s: StashSession) => void | Promise<void>;
   onRestoreDeleted: (id: string) => void | Promise<void>;
   onRemoveTab: (sid: string, tid: string) => void | Promise<void>;
-}) {
+}, forwardedRef: React.ForwardedRef<HTMLElement>) {
   const {
     active: dndActive,
     attributes,
@@ -1207,6 +1241,14 @@ function SessionCard({
     data: { type: "session", session },
     disabled: viewMode !== "library",
   });
+
+  // AnimatePresence (popLayout) needs to measure the card, and dnd-kit needs the
+  // node too — give both refs the same node.
+  const setCardRef = useCallback((node: HTMLElement | null) => {
+    setNodeRef(node);
+    if (typeof forwardedRef === "function") forwardedRef(node);
+    else if (forwardedRef) forwardedRef.current = node;
+  }, [setNodeRef, forwardedRef]);
 
   const isSessionDrag = dndActive?.data.current?.type === "session";
   // Any drag in progress (tab or session). Hover/tap micro-animations are
@@ -1232,7 +1274,7 @@ function SessionCard({
 
   return (
     <motion.article
-      ref={setNodeRef}
+      ref={setCardRef}
       data-marquee-id={session.id}
       {...(viewMode === "library" ? { ...attributes, ...listeners } : {})}
       style={sortStyle}
@@ -1242,8 +1284,8 @@ function SessionCard({
       whileHover={reduceMotion || isDragging || isAnyDragging ? undefined : { y: -3, transition: { type: "spring", stiffness: 420, damping: 26 } }}
       whileTap={reduceMotion || isAnyDragging ? undefined : { scale: 0.992 }}
       transition={{
-        duration: 0.22,
-        delay: reduceMotion ? 0 : Math.min(i * 0.04, 0.16),
+        duration: 0.2,
+        delay: reduceMotion ? 0 : Math.min(i * 0.018, 0.09),
         ease: [0.22, 1, 0.36, 1],
       }}
       className={cn(
@@ -1260,10 +1302,7 @@ function SessionCard({
           children (checkbox, chevron, actions, rename field) stop propagation. */}
       <div
         onClick={() => { if (!isEditing) onToggleExpanded(session.id); }}
-        className={cn(
-          "flex cursor-pointer items-center gap-2 pl-2.5 pr-2.5",
-          compactMode ? "py-1.5" : "py-2.5",
-        )}
+        className="flex cursor-pointer items-center gap-2 py-2.5 pl-2.5 pr-2.5"
       >
         {/* Selection checkbox */}
         <button
@@ -1272,7 +1311,7 @@ function SessionCard({
           aria-checked={selected}
           aria-label="Select group"
           data-marquee-skip
-          onClick={(e) => { e.stopPropagation(); onToggleSelected(); }}
+          onClick={(e) => { e.stopPropagation(); onToggleSelected(session.id); }}
           className={cn(
             "shrink-0 cursor-pointer select-none transition-opacity duration-[var(--dur-fast)]",
             selected || selectionActive ? "opacity-100" : "opacity-35 group-hover:opacity-100",
@@ -1415,7 +1454,7 @@ function SessionCard({
       </AnimatePresence>
     </motion.article>
   );
-}
+}));
 
 /* ── One tab row (draggable into another group) ────────────────── */
 function TabRow({
@@ -1750,7 +1789,7 @@ function OpenTabsView({
               key={tab.id}
               chromeTab={tab}
               selected={tab.id != null && selectedIds.has(tab.id)}
-              onToggle={() => tab.id != null && onToggle(tab.id)}
+              onToggle={onToggle}
             />
           ))}
         </ul>
@@ -1784,12 +1823,12 @@ function CheckBox({ checked }: { checked: boolean }) {
   );
 }
 
-function OpenTabSelectRow({
+const OpenTabSelectRow = memo(function OpenTabSelectRow({
   chromeTab, selected, onToggle,
 }: {
   chromeTab: chrome.tabs.Tab;
   selected: boolean;
-  onToggle: () => void;
+  onToggle: (id: number) => void;
 }) {
   const stashTab = useMemo<StashTab>(
     () => ({
@@ -1806,7 +1845,7 @@ function OpenTabSelectRow({
   return (
     <li
       data-marquee-id={chromeTab.id}
-      onClick={onToggle}
+      onClick={() => chromeTab.id != null && onToggle(chromeTab.id)}
       className={cn(
         "flex w-full min-w-0 cursor-pointer select-none items-center gap-2.5 overflow-hidden rounded-[10px] px-2.5 py-2 text-left transition-colors duration-[var(--dur-fast)]",
         selected ? "bg-accent/[0.07]" : "hover:bg-surface-subtle",
@@ -1819,7 +1858,7 @@ function OpenTabSelectRow({
       </span>
     </li>
   );
-}
+});
 
 /* ── Sticky footer CTA shown while tabs are selected ───────────── */
 function StashFooter({
@@ -1836,7 +1875,7 @@ function StashFooter({
       animate={{ y: 0, opacity: 1 }}
       exit={reduceMotion ? { opacity: 0 } : { y: 64, opacity: 0 }}
       transition={{ type: "spring", stiffness: 460, damping: 34 }}
-      className="absolute inset-x-0 bottom-0 z-10 border-t border-border bg-surface/85 px-4 py-3 backdrop-blur-md"
+      className="absolute inset-x-0 bottom-0 z-10 border-t border-border bg-surface px-4 py-3 shadow-[0_-6px_16px_-8px_rgba(20,35,80,0.18)]"
     >
       <motion.button
         type="button"
@@ -1875,7 +1914,7 @@ function BulkActionBar({
       animate={{ y: 0, opacity: 1 }}
       exit={reduceMotion ? { opacity: 0 } : { y: 64, opacity: 0 }}
       transition={{ type: "spring", stiffness: 460, damping: 34 }}
-      className="absolute inset-x-0 bottom-0 z-10 flex items-center gap-2 border-t border-border bg-surface/85 px-4 py-3 backdrop-blur-md"
+      className="absolute inset-x-0 bottom-0 z-10 flex items-center gap-2 border-t border-border bg-surface px-4 py-3 shadow-[0_-6px_16px_-8px_rgba(20,35,80,0.18)]"
     >
       <button
         type="button"
@@ -1911,61 +1950,6 @@ function BulkActionBar({
         </motion.button>
       </div>
     </motion.div>
-  );
-}
-
-function OpenTabsPanel({ tabs }: { tabs: chrome.tabs.Tab[] }) {
-  return (
-    <div className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-[var(--shadow-sm)]">
-      <ul className="stash-scroll m-0 max-h-[176px] list-none overflow-y-auto p-1.5">
-        {tabs.map((tab) => (
-          <OpenTabRow key={tab.id} chromeTab={tab} />
-        ))}
-      </ul>
-      <div className="border-t border-border/60 px-3 py-2">
-        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-2">
-          Drag onto a group to stash · drop zone to create new
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function OpenTabRow({ chromeTab }: { chromeTab: chrome.tabs.Tab }) {
-  const stashTab = useMemo<StashTab>(
-    () => ({
-      id: `client-${chromeTab.id}`,
-      url: chromeTab.url ?? "",
-      title: chromeTab.title?.trim() || chromeTab.url || "Untitled",
-      favicon: chromeTab.favIconUrl ?? "",
-      capturedAt: Date.now(),
-    }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chromeTab.id, chromeTab.url, chromeTab.title, chromeTab.favIconUrl],
-  );
-
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `open-tab-${chromeTab.id}`,
-    data: { type: "open-tab", chromeTabId: chromeTab.id, tab: stashTab },
-  });
-
-  return (
-    <li
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      className={cn(
-        "group/ot flex min-h-[36px] touch-none cursor-grab items-center gap-2 rounded-[8px] px-2.5 py-1 transition-colors hover:bg-surface-subtle active:cursor-grabbing",
-        isDragging && "opacity-40",
-      )}
-    >
-      <Favicon tab={stashTab} />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] font-medium text-ink">{stashTab.title}</span>
-        <span className="block truncate font-mono text-[11px] text-muted-2">{formatUrl(stashTab.url)}</span>
-      </span>
-      <GripVertical size={12} className="shrink-0 text-muted-2/40 transition-opacity group-hover/ot:text-muted-2" />
-    </li>
   );
 }
 
@@ -2207,7 +2191,7 @@ function Favicon({ tab, spine = false }: { tab: StashTab; spine?: boolean }) {
   if (!src || failed) {
     return <span className={cls}>{tab.title.trim().charAt(0).toUpperCase() || "S"}</span>;
   }
-  return <img className={cls} src={src} alt="" draggable={false} onError={() => setFailed(true)} />;
+  return <img className={cls} src={src} alt="" draggable={false} loading="lazy" decoding="async" onError={() => setFailed(true)} />;
 }
 
 function SaveBurstAnim({ burst, reduceMotion }: { burst: SaveBurst; reduceMotion: boolean }) {
@@ -2264,12 +2248,6 @@ function SessionCardGhost({ session }: { session: StashSession }) {
 }
 
 /* ── Utils ─────────────────────────────────────────────────────── */
-function formatDate(ts: number) {
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
-  }).format(new Date(ts));
-}
-
 function formatUrl(url: string) {
   try { return new URL(url).hostname.replace(/^www\./, ""); }
   catch { return url; }

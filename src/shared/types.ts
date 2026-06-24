@@ -2,7 +2,6 @@ export type SaveTarget = "current-window" | "all-windows";
 
 export type StashSettings = {
   saveTarget: SaveTarget;
-  compactMode: boolean;
   restoreInNewWindow: boolean;
 };
 

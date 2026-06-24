@@ -6,7 +6,6 @@ import {
   Keyboard,
   PanelTopClose,
   Puzzle,
-  Rows3,
   Upload,
 } from "lucide-react";
 import { motion } from "motion/react";
@@ -23,6 +22,10 @@ import {
   updateSettings,
 } from "../shared/storage";
 import type { SaveTarget, StashSession, StashSettings } from "../shared/types";
+
+// The default save shortcut, written the way the user's platform shows it.
+const IS_MAC = typeof navigator !== "undefined" && /mac/i.test(navigator.userAgent);
+const saveShortcut = IS_MAC ? "⌘ + Shift + S" : "Ctrl + Shift + S";
 
 /** In-popup settings panel. Slides over the main view; no separate options tab. */
 export function PopupSettings({
@@ -138,14 +141,6 @@ export function PopupSettings({
         </Row>
 
         <Toggle
-          icon={<Rows3 size={16} />}
-          title="Compact mode"
-          hint="Tighter rows."
-          checked={settings.compactMode}
-          onChange={(v) => void patch({ compactMode: v })}
-        />
-
-        <Toggle
           icon={<AppWindow size={16} />}
           title="Restore in new window"
           hint="Open restored tabs in a fresh window."
@@ -153,9 +148,9 @@ export function PopupSettings({
           onChange={(v) => void patch({ restoreInNewWindow: v })}
         />
 
-        <Row icon={<Keyboard size={16} />} title="Keyboard shortcut" hint="⌘⇧S / Ctrl⇧S to save.">
+        <Row icon={<Keyboard size={16} />} title="Keyboard shortcut" hint={`Press ${saveShortcut} to save all your tabs.`}>
           <LinkButton onClick={() => void chrome.tabs.create({ url: "chrome://extensions/shortcuts" })}>
-            Shortcuts <ExternalLink size={13} />
+            Change <ExternalLink size={13} />
           </LinkButton>
         </Row>
 

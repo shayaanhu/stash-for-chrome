@@ -3,6 +3,10 @@ export type SaveTarget = "current-window" | "all-windows";
 export type StashSettings = {
   saveTarget: SaveTarget;
   restoreInNewWindow: boolean;
+  /** When false (default), clicking empty space clears the current selection. */
+  stickySelection: boolean;
+  /** Remembered choice in the Stash sheet: close the tabs after stashing them. */
+  closeAfterStash: boolean;
 };
 
 export type StashTab = {

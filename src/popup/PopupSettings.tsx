@@ -4,6 +4,7 @@ import {
   Download,
   ExternalLink,
   Keyboard,
+  MousePointerClick,
   PanelTopClose,
   Puzzle,
   Upload,
@@ -146,6 +147,14 @@ export function PopupSettings({
           hint="Open restored tabs in a fresh window."
           checked={settings.restoreInNewWindow}
           onChange={(v) => void patch({ restoreInNewWindow: v })}
+        />
+
+        <Toggle
+          icon={<MousePointerClick size={16} />}
+          title="Sticky selection"
+          hint="Keep your selection when you click elsewhere."
+          checked={settings.stickySelection}
+          onChange={(v) => void patch({ stickySelection: v })}
         />
 
         <Row icon={<Keyboard size={16} />} title="Keyboard shortcut" hint={`Press ${saveShortcut} to save all your tabs.`}>

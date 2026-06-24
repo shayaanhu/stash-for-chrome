@@ -71,25 +71,6 @@ function isSavableChromeTabUrl(url: string | undefined): boolean {
   return url.startsWith("http://") || url.startsWith("https://") || url.startsWith("file://");
 }
 
-/**
- * One pointer sensor, two activation styles. dnd-kit allows a single activation
- * constraint per sensor, but the active node's data tells us what's being
- * dragged — so we pick the rule per draggable:
- *  • group cards (type "session") → press-and-hold 0.5s, so a tap only expands;
- *  • tab rows / everything else   → a small drag picks up instantly, so moving a
- *    tab between groups feels immediate while a tap still restores it.
- */
-class MixedActivationPointerSensor extends PointerSensor {
-  constructor(props: ConstructorParameters<typeof PointerSensor>[0]) {
-    const type = props.activeNode?.data?.current?.type as string | undefined;
-    const activationConstraint =
-      type === "session"
-        ? { delay: 500, tolerance: 8 }
-        : { distance: 6 };
-    super({ ...props, options: { ...props.options, activationConstraint } });
-  }
-}
-
 export function PopupApp() {
   const reduceMotion = useReducedMotion();
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -125,10 +106,11 @@ export function PopupApp() {
   const pointerYRef = useRef(0);
   const initialPointerYRef = useRef(0);
 
-  // Group cards hold-to-drag (0.5s) so a tap just expands; tab rows drag on a
-  // small movement so moving a tab between groups stays instant. See the sensor.
+  // Instant drag: groups and tabs both pick up after a tiny 6px move, so a plain
+  // click still expands a group / restores a tab. There's no marquee ambiguity to
+  // guard against — a selection box can't start on a card (data-marquee-skip).
   const sensors = useSensors(
-    useSensor(MixedActivationPointerSensor),
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor),
   );
 
@@ -1276,6 +1258,7 @@ const SessionCard = memo(forwardRef(function SessionCard({
     <motion.article
       ref={setCardRef}
       data-marquee-id={session.id}
+      data-marquee-skip
       {...(viewMode === "library" ? { ...attributes, ...listeners } : {})}
       style={sortStyle}
       initial={reduceMotion ? false : { opacity: 0, y: 10 }}

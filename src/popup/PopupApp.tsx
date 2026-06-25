@@ -1,9 +1,11 @@
 import NumberFlow from "@number-flow/react";
 import {
+  ArrowUpDown,
   Check,
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  History,
   Layers,
   LayoutGrid,
   Loader2,
@@ -56,8 +58,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../com
 import { cn } from "../lib/utils";
 import { sendBackgroundRequest } from "../shared/messages";
 import { getSessions, getSessionOrder, getSettings } from "../shared/storage";
-import { applySessionOrder, matchesSession, autoNameSession } from "../shared/session-utils";
-import type { SaveTarget, StashSession, StashTab } from "../shared/types";
+import { applySessionOrder, matchesSession, autoNameSession, formatSessionDate } from "../shared/session-utils";
+import type { SaveTarget, SessionSort, StashSession, StashTab } from "../shared/types";
 
 // The Stash list still reasons in terms of "library" vs "trash"; the top-level
 // nav is "open" (live tabs) vs "stash" (saved collection), with trash a sub-view.
@@ -90,6 +92,7 @@ export function PopupApp() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
   const [originalName, setOriginalName] = useState("");
+  const [sessionSort, setSessionSort] = useState<SessionSort>("manual");
   const [isSaving, setIsSaving] = useState(false);
   const [freshlySavedId, setFreshlySavedId] = useState<string | null>(null);
   const [saveBurst, setSaveBurst] = useState<SaveBurst | null>(null);
@@ -131,6 +134,7 @@ export function PopupApp() {
       setSaveTarget(nextSettings.saveTarget);
       setStickySelection(nextSettings.stickySelection);
       setCloseAfterStash(nextSettings.closeAfterStash);
+      setSessionSort(nextSettings.sessionSort ?? "manual");
     }, 50);
   }, []);
 
@@ -197,15 +201,31 @@ export function PopupApp() {
 
   const { activeCount, trashCount } = useMemo(() => {
     let active = 0, trashed = 0;
-    for (const s of sessions) s.deletedAt ? trashed++ : active++;
+    for (const s of sessions) {
+      if (s.autoSaved) continue;
+      s.deletedAt ? trashed++ : active++;
+    }
     return { activeCount: active, trashCount: trashed };
   }, [sessions]);
 
   const visibleSessions = useMemo(() => {
-    return sessions
+    let result = sessions
+      .filter((s) => !s.autoSaved)
       .filter((s) => (showTrash ? Boolean(s.deletedAt) : !s.deletedAt))
       .filter((s) => matchesSession(s, query));
-  }, [sessions, query, showTrash]);
+    if (!showTrash && sessionSort !== "manual") {
+      result = [...result].sort((a, b) => {
+        switch (sessionSort) {
+          case "date-desc": return b.createdAt - a.createdAt;
+          case "date-asc":  return a.createdAt - b.createdAt;
+          case "name-asc":  return a.name.localeCompare(b.name);
+          case "size-desc": return b.tabs.length - a.tabs.length;
+          default: return 0;
+        }
+      });
+    }
+    return result;
+  }, [sessions, sessionSort, query, showTrash]);
 
   const filteredOpenTabs = useMemo(() => {
     const q = openFilter.trim().toLowerCase();
@@ -282,6 +302,11 @@ export function PopupApp() {
     setEditingId(session.id);
     setDraftName(session.name);
     setOriginalName(session.name);
+  }
+
+  function selectSort(next: SessionSort) {
+    setSessionSort(next);
+    void sendBackgroundRequest({ type: "UPDATE_SETTINGS", settings: { sessionSort: next } });
   }
 
   // ── Open Tabs selection ──────────────────────────────────────────────────────
@@ -882,8 +907,14 @@ export function PopupApp() {
 
   const visibleSessionIds = useMemo(() => visibleSessions.map((s) => s.id), [visibleSessions]);
 
-  // All saved (non-trash) groups — the "add to existing" targets in the Stash sheet.
-  const activeSessions = useMemo(() => sessions.filter((s) => !s.deletedAt), [sessions]);
+  // All saved (non-trash, non-auto) groups — the "add to existing" targets in the Stash sheet.
+  const activeSessions = useMemo(() => sessions.filter((s) => !s.deletedAt && !s.autoSaved), [sessions]);
+
+  // Auto-save snapshots shown in the collapsible Snapshots section.
+  const autoSaveSessions = useMemo(() =>
+    sessions.filter((s) => s.autoSaved).sort((a, b) => b.createdAt - a.createdAt),
+    [sessions],
+  );
 
   // Auto-name suggestion for a new group, from the currently selected open tabs.
   const stashDefaultName = useMemo(() => {
@@ -1007,17 +1038,20 @@ export function PopupApp() {
                             </motion.button>
                           ) : null
                         ) : (
-                          <motion.button
-                            type="button"
-                            onClick={() => void handleCreateEmptyGroup()}
-                            whileHover={{ y: -1 }}
-                            whileTap={{ scale: 0.95, y: 0 }}
-                            transition={{ type: "spring", stiffness: 480, damping: 26 }}
-                            className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 font-body text-[12px] font-medium text-muted shadow-[var(--shadow-sm)] transition-[box-shadow,color] duration-[var(--dur-fast)] hover:text-ink hover:shadow-[var(--shadow-md)]"
-                          >
-                            <Plus size={12} />
-                            New group
-                          </motion.button>
+                          <div className="flex items-center gap-1.5">
+                            <SortButton sort={sessionSort} onSelect={selectSort} />
+                            <motion.button
+                              type="button"
+                              onClick={() => void handleCreateEmptyGroup()}
+                              whileHover={{ y: -1 }}
+                              whileTap={{ scale: 0.95, y: 0 }}
+                              transition={{ type: "spring", stiffness: 480, damping: 26 }}
+                              className="flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 font-body text-[12px] font-medium text-muted shadow-[var(--shadow-sm)] transition-[box-shadow,color] duration-[var(--dur-fast)] hover:text-ink hover:shadow-[var(--shadow-md)]"
+                            >
+                              <Plus size={12} />
+                              New group
+                            </motion.button>
+                          </div>
                         )}
                       </div>
 
@@ -1046,6 +1080,7 @@ export function PopupApp() {
                                 restoreBurstId={restoreBurstId}
                                 reduceMotion={Boolean(reduceMotion)}
                                 selectedIds={selectedSessionIds}
+                                sortEnabled={sessionSort === "manual"}
                                 {...sessionActions}
                               />
                             </div>
@@ -1070,6 +1105,15 @@ export function PopupApp() {
                             : null}
                         </DragOverlay>
                       </DndContext>
+
+                      {!showTrash && autoSaveSessions.length > 0 && (
+                        <AutoSaveSection
+                          sessions={autoSaveSessions}
+                          reduceMotion={Boolean(reduceMotion)}
+                          onRestore={handleRestoreAll}
+                          onDelete={handleDeleteForever}
+                        />
+                      )}
                     </>
                   )}
                 </div>
@@ -1141,7 +1185,7 @@ export function PopupApp() {
 const SessionList = memo(function SessionList({
   sessions, expandedIds, editingId, draftName, viewMode,
   freshlySavedId, restoreBurstId, reduceMotion,
-  selectedIds, onToggleSelected,
+  selectedIds, sortEnabled, onToggleSelected,
   onDraftNameChange, onToggleExpanded, onRenameStart, onRenameSubmit,
   onRenameKeyDown, onRestoreAll, onRestoreTab, onDeleteSession,
   onDeleteForever, onRestoreDeleted, onRemoveTab,
@@ -1155,6 +1199,7 @@ const SessionList = memo(function SessionList({
   restoreBurstId: string | null;
   reduceMotion: boolean;
   selectedIds: Set<string>;
+  sortEnabled: boolean;
   onToggleSelected: (id: string) => void;
   onDraftNameChange: (n: string) => void;
   onToggleExpanded: (id: string) => void;
@@ -1197,6 +1242,7 @@ const SessionList = memo(function SessionList({
                 reduceMotion={reduceMotion}
                 selected={selectedIds.has(session.id)}
                 selectionActive={selectionActive}
+                sortEnabled={sortEnabled}
                 onToggleSelected={onToggleSelected}
                 onDraftNameChange={onDraftNameChange}
                 onToggleExpanded={onToggleExpanded}
@@ -1222,7 +1268,7 @@ const SessionList = memo(function SessionList({
    move) only re-renders the cards whose `selected` actually flipped. */
 const SessionCard = memo(function SessionCard({
   session, index: i, isExpanded, isEditing, isFresh, isRestoring, viewMode,
-  draftName, reduceMotion, selected, selectionActive,
+  draftName, reduceMotion, selected, selectionActive, sortEnabled,
   onToggleSelected,
   onDraftNameChange, onToggleExpanded, onRenameStart, onRenameSubmit,
   onRenameKeyDown, onRestoreAll, onRestoreTab, onDeleteSession,
@@ -1239,6 +1285,7 @@ const SessionCard = memo(function SessionCard({
   reduceMotion: boolean;
   selected: boolean;
   selectionActive: boolean;
+  sortEnabled: boolean;
   onToggleSelected: (id: string) => void;
   onDraftNameChange: (n: string) => void;
   onToggleExpanded: (id: string) => void;
@@ -1264,7 +1311,7 @@ const SessionCard = memo(function SessionCard({
   } = useSortable({
     id: session.id,
     data: { type: "session", session },
-    disabled: viewMode !== "library",
+    disabled: viewMode !== "library" || !sortEnabled,
   });
 
   const isSessionDrag = dndActive?.data.current?.type === "session";
@@ -1294,7 +1341,7 @@ const SessionCard = memo(function SessionCard({
       ref={setNodeRef}
       data-marquee-id={session.id}
       data-marquee-skip
-      {...(viewMode === "library" ? { ...attributes, ...listeners } : {})}
+      {...(viewMode === "library" && sortEnabled ? { ...attributes, ...listeners } : {})}
       style={sortStyle}
       initial={reduceMotion ? false : { opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
@@ -1393,12 +1440,17 @@ const SessionCard = memo(function SessionCard({
               />
             </form>
           ) : (
-            <div className="flex w-full items-center gap-1.5 text-left">
-              {isFresh && <FreshDot reduceMotion={reduceMotion} />}
-              <span className="truncate font-display display-title text-[14px] font-semibold leading-tight text-ink select-none">
-                {session.name}
+            <div className="flex w-full flex-col text-left">
+              <div className="flex items-center gap-1.5">
+                {isFresh && <FreshDot reduceMotion={reduceMotion} />}
+                <span className="truncate font-display display-title text-[14px] font-semibold leading-tight text-ink select-none">
+                  {session.name}
+                </span>
+                <span className="shrink-0 font-mono text-[10.5px] text-muted-2">· {session.tabs.length}</span>
+              </div>
+              <span className="mt-1 font-mono text-[10px] leading-tight text-muted-2">
+                {formatSessionDate(session.createdAt)}
               </span>
-              <span className="shrink-0 font-mono text-[10.5px] text-muted-2">· {session.tabs.length}</span>
             </div>
           )}
         </div>
@@ -2474,6 +2526,154 @@ function SessionCardGhost({ session }: { session: StashSession }) {
           <span className="shrink-0 font-mono text-[10.5px] text-muted-2">· {session.tabs.length}</span>
         </span>
       </div>
+    </div>
+  );
+}
+
+/* ── Sort button ────────────────────────────────────────────────────── */
+const SORT_CYCLE: SessionSort[] = ["manual", "date-desc", "date-asc", "name-asc", "size-desc"];
+const SORT_LABELS: Record<SessionSort, string> = {
+  "manual":    "Manual order",
+  "date-desc": "Newest first",
+  "date-asc":  "Oldest first",
+  "name-asc":  "A → Z",
+  "size-desc": "Most tabs",
+};
+
+function SortButton({ sort, onSelect }: { sort: SessionSort; onSelect: (s: SessionSort) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const isActive = sort !== "manual";
+
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    window.addEventListener("mousedown", handler);
+    return () => window.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <motion.button
+        type="button"
+        aria-label="Sort sessions"
+        onClick={() => setOpen((v) => !v)}
+        whileHover={{ y: -1 }}
+        whileTap={{ scale: 0.92, y: 0 }}
+        transition={{ type: "spring", stiffness: 480, damping: 26 }}
+        className={cn(
+          "flex h-7 w-7 items-center justify-center rounded-full border shadow-[var(--shadow-sm)] transition-[color,border-color,background-color,box-shadow] duration-[var(--dur-fast)] hover:shadow-[var(--shadow-md)]",
+          isActive
+            ? "border-accent/40 bg-accent/[0.07] text-accent-text"
+            : "border-border bg-surface text-muted hover:text-ink",
+        )}
+      >
+        <ArrowUpDown size={12} />
+      </motion.button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: -4 }}
+            transition={{ duration: 0.1, ease: [0.2, 0, 0, 1] }}
+            className="absolute right-0 top-full z-50 mt-1.5 w-36 overflow-hidden rounded-xl border border-border bg-surface py-1 shadow-[0_8px_24px_-6px_rgba(20,35,80,0.22),0_2px_8px_-2px_rgba(20,35,80,0.10)]"
+          >
+            {SORT_CYCLE.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => { onSelect(s); setOpen(false); }}
+                className={cn(
+                  "flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors duration-[var(--dur-fast)] hover:bg-surface-subtle",
+                  s === sort ? "font-semibold text-accent-text" : "font-medium text-ink",
+                )}
+              >
+                <span className="flex w-[11px] shrink-0 items-center justify-center">
+                  {s === sort && <Check size={11} className="text-accent-text" />}
+                </span>
+                {SORT_LABELS[s]}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* ── Auto-save snapshots section ────────────────────────────────────── */
+function AutoSaveSection({
+  sessions, reduceMotion, onRestore, onDelete,
+}: {
+  sessions: StashSession[];
+  reduceMotion: boolean;
+  onRestore: (s: StashSession) => void;
+  onDelete: (s: StashSession) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-1.5 rounded-full py-1 text-left transition-colors duration-[var(--dur-fast)] hover:text-ink"
+      >
+        <History size={11} className="shrink-0 text-muted-2" />
+        <span className="flex-1 font-mono text-[10.5px] font-medium text-muted-2">
+          Snapshots · {sessions.length}
+        </span>
+        <motion.span
+          animate={{ rotate: open ? 90 : 0 }}
+          transition={{ type: "spring", stiffness: 400, damping: 24 }}
+          className="inline-flex text-muted-2"
+        >
+          <ChevronRight size={11} />
+        </motion.span>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="snapshots"
+            initial={reduceMotion ? false : { height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={reduceMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="flex flex-col gap-1 pt-1">
+              {sessions.map((s) => (
+                <div
+                  key={s.id}
+                  className="flex items-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface px-2.5 py-1.5 shadow-[var(--shadow-sm)]"
+                >
+                  <History size={11} className="shrink-0 text-muted-2" />
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="font-mono text-[11px] font-medium text-ink">
+                      {formatSessionDate(s.createdAt)}
+                    </span>
+                    <span className="font-mono text-[10px] text-muted-2">{s.tabs.length} tabs</span>
+                  </div>
+                  <div className="flex items-center gap-0.5">
+                    <ActionBtn label="Delete snapshot" danger onClick={() => onDelete(s)}>
+                      <X size={12} />
+                    </ActionBtn>
+                    <RestoreButton
+                      label="Restore snapshot"
+                      icon={<RotateCcw size={14} />}
+                      onClick={() => onRestore(s)}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

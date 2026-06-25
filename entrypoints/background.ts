@@ -1,5 +1,6 @@
 import { defineBackground } from "wxt/utils/define-background";
 import {
+  addAutoSaveSession,
   addSession,
   addSessions,
   addTabToSession,
@@ -32,6 +33,9 @@ import type { BackgroundRequest, BackgroundResponse } from "../src/shared/messag
 const TRASH_PURGE_ALARM = "stash-trash-purge";
 const TRASH_PURGE_PERIOD_MINUTES = 6 * 60;
 
+const AUTO_SAVE_ALARM = "stash-autosave";
+const AUTO_SAVE_PERIOD_MINUTES = 5;
+
 export default defineBackground(() => {
   // Rebuild menus on every worker start too, not just install — so a reload or
   // an updated set of items always takes effect without a full reinstall.
@@ -47,23 +51,29 @@ export default defineBackground(() => {
     }, 1000);
   });
 
-  chrome.runtime.onInstalled.addListener((details) => {
+  chrome.runtime.onInstalled.addListener(async (details) => {
     void setupContextMenus();
 
     void ensureMeta();
     chrome.alarms.create(TRASH_PURGE_ALARM, { periodInMinutes: TRASH_PURGE_PERIOD_MINUTES });
+
+    const settings = await getSettings();
+    await syncAutoSaveAlarm(settings.autoSave);
 
     if (details.reason === "install") {
       void chrome.tabs.create({ url: chrome.runtime.getURL("onboarding.html") });
     }
   });
 
-  chrome.runtime.onStartup.addListener(() => {
+  chrome.runtime.onStartup.addListener(async () => {
     void purgeExpiredTrash();
+    const settings = await getSettings();
+    await syncAutoSaveAlarm(settings.autoSave);
   });
 
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === TRASH_PURGE_ALARM) void purgeExpiredTrash();
+    if (alarm.name === AUTO_SAVE_ALARM) void runAutoSave();
   });
 
   chrome.commands.onCommand.addListener((command) => {
@@ -103,7 +113,7 @@ function setupContextMenus(): Promise<void> {
 
 async function doSetupContextMenus(): Promise<void> {
   const sessions = await getSessions().catch(() => []);
-  const active = sessions.filter((s) => !s.deletedAt).slice(0, 15);
+  const active = sessions.filter((s) => !s.deletedAt && !s.autoSaved).slice(0, 15);
 
   await new Promise<void>((resolve) => {
     chrome.contextMenus.removeAll(() => {
@@ -185,8 +195,11 @@ async function handleRequest(request: BackgroundRequest): Promise<BackgroundResp
         await closeTabsByUrls(request.sessions.flatMap((s) => s.tabs.map((t) => t.url)));
         return { ok: true, count };
       }
-      case "UPDATE_SETTINGS":
-        return { ok: true, settings: await updateSettings(request.settings) };
+      case "UPDATE_SETTINGS": {
+        const settings = await updateSettings(request.settings);
+        if ("autoSave" in request.settings) await syncAutoSaveAlarm(settings.autoSave);
+        return { ok: true, settings };
+      }
       case "CREATE_EMPTY_SESSION": {
         const session: StashSession = {
           id: crypto.randomUUID(),
@@ -264,6 +277,40 @@ async function handleRequest(request: BackgroundRequest): Promise<BackgroundResp
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Something went wrong." };
   }
+}
+
+// ── Auto-save ─────────────────────────────────────────────────────────────────
+async function syncAutoSaveAlarm(enabled: boolean): Promise<void> {
+  if (enabled) {
+    const existing = await new Promise<chrome.alarms.Alarm | undefined>((r) =>
+      chrome.alarms.get(AUTO_SAVE_ALARM, r),
+    );
+    if (!existing) chrome.alarms.create(AUTO_SAVE_ALARM, { periodInMinutes: AUTO_SAVE_PERIOD_MINUTES });
+  } else {
+    await chrome.alarms.clear(AUTO_SAVE_ALARM);
+  }
+}
+
+async function runAutoSave(): Promise<void> {
+  const settings = await getSettings();
+  if (!settings.autoSave) {
+    await chrome.alarms.clear(AUTO_SAVE_ALARM);
+    return;
+  }
+  const tabs = await queryTabs({ lastFocusedWindow: true });
+  const savable = tabs.filter((t) => isSavableChromeTab(t) && !isTabPinned(t));
+  if (savable.length === 0) return;
+  const now = Date.now();
+  const stashTabs = savable.map((t) => createStashTab(t, now));
+  const session: StashSession = {
+    id: crypto.randomUUID(),
+    name: autoNameSession(stashTabs, now),
+    createdAt: now,
+    tabs: stashTabs,
+    autoSaved: true,
+    autoSaveKind: new Date(now).getHours() === 23 ? "daily" : "interval",
+  };
+  await addAutoSaveSession(session);
 }
 
 // ── Add single tab to an existing session (context menu) ─────────────────────

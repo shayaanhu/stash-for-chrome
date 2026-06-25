@@ -20,7 +20,12 @@ export const defaultSettings: StashSettings = {
   restoreInNewWindow: false,
   stickySelection: false,
   closeAfterStash: true,
+  sessionSort: "manual",
+  autoSave: false,
 };
+
+export const AUTO_SAVE_INTERVAL_KEEP = 12;
+export const AUTO_SAVE_DAILY_KEEP = 7;
 
 type StoredMeta = { version: number };
 
@@ -104,6 +109,10 @@ function normalizeSession(raw: unknown): StashSession | null {
   const session: StashSession = { id, name, createdAt, tabs };
   if (deletedAt !== undefined) session.deletedAt = deletedAt;
   if (manuallyCreated) session.manuallyCreated = true;
+  if (raw.autoSaved === true) {
+    session.autoSaved = true;
+    session.autoSaveKind = raw.autoSaveKind === "daily" ? "daily" : "interval";
+  }
   if (Array.isArray(raw.tags)) session.tags = raw.tags.filter((t): t is string => typeof t === "string");
   return session;
 }
@@ -350,6 +359,27 @@ export function purgeExpiredTrash(): Promise<number> {
   return mutate((sessions) => {
     const next = sessions.filter((s) => !isExpiredTrash(s, now));
     return { next, result: sessions.length - next.length };
+  });
+}
+
+export function pruneAutoSaves(sessions: StashSession[]): StashSession[] {
+  const intervals = sessions
+    .filter(s => s.autoSaved && s.autoSaveKind !== "daily")
+    .sort((a, b) => b.createdAt - a.createdAt);
+  const dailies = sessions
+    .filter(s => s.autoSaved && s.autoSaveKind === "daily")
+    .sort((a, b) => b.createdAt - a.createdAt);
+  const keepIds = new Set([
+    ...intervals.slice(0, AUTO_SAVE_INTERVAL_KEEP).map(s => s.id),
+    ...dailies.slice(0, AUTO_SAVE_DAILY_KEEP).map(s => s.id),
+  ]);
+  return sessions.filter(s => !s.autoSaved || keepIds.has(s.id));
+}
+
+export function addAutoSaveSession(session: StashSession): Promise<StashSession> {
+  return mutate((sessions) => {
+    const pruned = pruneAutoSaves([session, ...sessions]);
+    return { next: pruned, result: session };
   });
 }
 

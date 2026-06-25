@@ -1,6 +1,7 @@
 import {
   AppWindow,
   ArrowLeft,
+  Clock,
   Download,
   ExternalLink,
   Keyboard,
@@ -20,7 +21,6 @@ import {
   getSessions,
   getSettings,
   normalizeSessions,
-  updateSettings,
 } from "../shared/storage";
 import type { SaveTarget, StashSession, StashSettings } from "../shared/types";
 
@@ -52,16 +52,18 @@ export function PopupSettings({
   }
 
   async function patch(next: Partial<StashSettings>) {
-    setSettings(await updateSettings(next));
+    const response = await sendBackgroundRequest({ type: "UPDATE_SETTINGS", settings: next });
+    if (response.ok && response.settings) setSettings(response.settings);
     flash("Saved");
   }
 
   function handleExport() {
+    const exportable = sessions.filter((s) => !s.autoSaved);
     const payload = {
       app: "stash",
       schemaVersion: SCHEMA_VERSION,
       exportedAt: new Date().toISOString(),
-      sessions,
+      sessions: exportable,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -70,7 +72,7 @@ export function PopupSettings({
     anchor.download = `stash-backup-${new Date().toISOString().slice(0, 10)}.json`;
     anchor.click();
     URL.revokeObjectURL(url);
-    flash(`Exported ${sessions.length} ${sessions.length === 1 ? "session" : "sessions"}`);
+    flash(`Exported ${exportable.length} ${exportable.length === 1 ? "session" : "sessions"}`);
   }
 
   async function handleImportFile(event: ChangeEvent<HTMLInputElement>) {
@@ -157,6 +159,14 @@ export function PopupSettings({
           onChange={(v) => void patch({ stickySelection: v })}
         />
 
+        <Toggle
+          icon={<Clock size={16} />}
+          title="Auto-save snapshots"
+          hint="Snapshot your open tabs every 5 min. Up to 12 kept."
+          checked={settings.autoSave ?? false}
+          onChange={(v) => void patch({ autoSave: v })}
+        />
+
         <Row icon={<Keyboard size={16} />} title="Keyboard shortcut" hint={`Press ${saveShortcut} to save all your tabs.`}>
           <LinkButton onClick={() => void chrome.tabs.create({ url: "chrome://extensions/shortcuts" })}>
             Change <ExternalLink size={13} />
@@ -172,7 +182,7 @@ export function PopupSettings({
         <Row
           icon={<Download size={16} />}
           title="Backup"
-          hint={`${sessions.length} ${sessions.length === 1 ? "session" : "sessions"} saved.`}
+          hint={`${sessions.filter(s => !s.autoSaved).length} ${sessions.filter(s => !s.autoSaved).length === 1 ? "session" : "sessions"} saved.`}
         >
           <div className="flex gap-2">
             <LinkButton onClick={handleExport} disabled={sessions.length === 0}>

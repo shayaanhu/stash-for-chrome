@@ -1,5 +1,17 @@
 import type { StashSession, StashTab } from "./types";
 
+export function formatSessionDate(ms: number): string {
+  const d = new Date(ms);
+  const now = new Date();
+  const sameYear = d.getFullYear() === now.getFullYear();
+  return new Intl.DateTimeFormat(undefined, {
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    ...(!sameYear && { year: "numeric" }),
+  }).format(d).replace(/\s?(AM|PM)/gi, (_, m: string) => m.toLowerCase());
+}
+
 export function isSavableChromeTab(tab: chrome.tabs.Tab) {
   if (!tab.url) {
     return false;

@@ -600,14 +600,16 @@ export function PopupApp() {
       setActiveSession(null);
       if (!over || active.id === over.id) return;
 
-      setSessions((prev) => {
-        const oldIndex = prev.findIndex((s) => s.id === active.id);
-        const newIndex = prev.findIndex((s) => s.id === over.id);
-        if (oldIndex === -1 || newIndex === -1) return prev;
-        const next = arrayMove(prev, oldIndex, newIndex);
-        void sendBackgroundRequest({ type: "REORDER_SESSIONS", order: next.map((s) => s.id) });
-        return next;
-      });
+      const oldIndex = visibleSessions.findIndex((s) => s.id === active.id);
+      const newIndex = visibleSessions.findIndex((s) => s.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return;
+
+      const reordered = arrayMove(visibleSessions, oldIndex, newIndex);
+      const newOrderIds = reordered.map((s) => s.id);
+
+      if (sessionSort !== "manual") selectSort("manual");
+      void sendBackgroundRequest({ type: "REORDER_SESSIONS", order: newOrderIds });
+      setSessions((prev) => applySessionOrder(prev, newOrderIds));
     } else if (type === "open-tab") {
       setActiveTab(null);
       if (!over) return;
@@ -1080,7 +1082,6 @@ export function PopupApp() {
                                 restoreBurstId={restoreBurstId}
                                 reduceMotion={Boolean(reduceMotion)}
                                 selectedIds={selectedSessionIds}
-                                sortEnabled={sessionSort === "manual"}
                                 {...sessionActions}
                               />
                             </div>
@@ -1185,7 +1186,7 @@ export function PopupApp() {
 const SessionList = memo(function SessionList({
   sessions, expandedIds, editingId, draftName, viewMode,
   freshlySavedId, restoreBurstId, reduceMotion,
-  selectedIds, sortEnabled, onToggleSelected,
+  selectedIds, onToggleSelected,
   onDraftNameChange, onToggleExpanded, onRenameStart, onRenameSubmit,
   onRenameKeyDown, onRestoreAll, onRestoreTab, onDeleteSession,
   onDeleteForever, onRestoreDeleted, onRemoveTab,
@@ -1199,7 +1200,6 @@ const SessionList = memo(function SessionList({
   restoreBurstId: string | null;
   reduceMotion: boolean;
   selectedIds: Set<string>;
-  sortEnabled: boolean;
   onToggleSelected: (id: string) => void;
   onDraftNameChange: (n: string) => void;
   onToggleExpanded: (id: string) => void;
@@ -1242,7 +1242,6 @@ const SessionList = memo(function SessionList({
                 reduceMotion={reduceMotion}
                 selected={selectedIds.has(session.id)}
                 selectionActive={selectionActive}
-                sortEnabled={sortEnabled}
                 onToggleSelected={onToggleSelected}
                 onDraftNameChange={onDraftNameChange}
                 onToggleExpanded={onToggleExpanded}
@@ -1268,7 +1267,7 @@ const SessionList = memo(function SessionList({
    move) only re-renders the cards whose `selected` actually flipped. */
 const SessionCard = memo(function SessionCard({
   session, index: i, isExpanded, isEditing, isFresh, isRestoring, viewMode,
-  draftName, reduceMotion, selected, selectionActive, sortEnabled,
+  draftName, reduceMotion, selected, selectionActive,
   onToggleSelected,
   onDraftNameChange, onToggleExpanded, onRenameStart, onRenameSubmit,
   onRenameKeyDown, onRestoreAll, onRestoreTab, onDeleteSession,
@@ -1285,7 +1284,6 @@ const SessionCard = memo(function SessionCard({
   reduceMotion: boolean;
   selected: boolean;
   selectionActive: boolean;
-  sortEnabled: boolean;
   onToggleSelected: (id: string) => void;
   onDraftNameChange: (n: string) => void;
   onToggleExpanded: (id: string) => void;
@@ -1311,7 +1309,7 @@ const SessionCard = memo(function SessionCard({
   } = useSortable({
     id: session.id,
     data: { type: "session", session },
-    disabled: viewMode !== "library" || !sortEnabled,
+    disabled: viewMode !== "library",
   });
 
   const isSessionDrag = dndActive?.data.current?.type === "session";
@@ -1341,7 +1339,7 @@ const SessionCard = memo(function SessionCard({
       ref={setNodeRef}
       data-marquee-id={session.id}
       data-marquee-skip
-      {...(viewMode === "library" && sortEnabled ? { ...attributes, ...listeners } : {})}
+      {...(viewMode === "library" ? { ...attributes, ...listeners } : {})}
       style={sortStyle}
       initial={reduceMotion ? false : { opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}

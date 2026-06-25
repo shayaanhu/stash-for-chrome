@@ -521,7 +521,10 @@ async function createTab(url: string): Promise<void> {
 
 function createTabInWindow(url: string, windowId?: number): Promise<void> {
   return new Promise((resolve, reject) => {
-    chrome.tabs.create({ url, windowId, active: false }, () => {
+    // discarded: true parks the tab in the strip without loading the page.
+    // Chrome loads it on demand when the user focuses it — prevents the
+    // memory spike that crashes the browser when restoring large sessions.
+    chrome.tabs.create({ url, windowId, active: false, discarded: true }, () => {
       const error = chrome.runtime.lastError;
       if (error) reject(new Error(error.message));
       else resolve();

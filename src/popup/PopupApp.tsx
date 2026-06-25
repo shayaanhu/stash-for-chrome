@@ -1175,7 +1175,7 @@ const SessionList = memo(function SessionList({
   const selectionActive = selectedIds.size > 0;
   return (
     <motion.section
-      className="grid gap-2"
+      className="flex flex-col"
       aria-label={viewMode === "trash" ? "Deleted sessions" : "Saved sessions"}
     >
         <AnimatePresence initial={false}>
@@ -1292,8 +1292,8 @@ const SessionCard = memo(function SessionCard({
       {...(viewMode === "library" ? { ...attributes, ...listeners } : {})}
       style={sortStyle}
       initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-      animate={{ opacity: isDragging ? 0 : 1, y: 0 }}
-      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, height: 0, marginTop: 0, transition: { duration: 0.2, ease: [0.4, 0, 1, 1] } }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, height: 0, marginTop: 0, marginBottom: 0, transition: { duration: 0.2, ease: [0.4, 0, 1, 1] } }}
       whileHover={reduceMotion || isDragging || isAnyDragging ? undefined : { y: -3, transition: { type: "spring", stiffness: 420, damping: 26 } }}
       whileTap={reduceMotion || isAnyDragging ? undefined : { scale: 0.992 }}
       transition={{
@@ -1303,8 +1303,9 @@ const SessionCard = memo(function SessionCard({
       }}
       className={cn(
         // Accent spine is an inset box-shadow so it follows the rounded edge the full height (no corner clipping)
-        "group relative select-none overflow-hidden rounded-[var(--radius-card)] border bg-surface shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-sm)] transition-[box-shadow,border-color,background-color] duration-[var(--dur-base)] hover:border-border-strong hover:shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-md)]",
+        "group relative select-none overflow-hidden rounded-[var(--radius-card)] border bg-surface shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-sm)] transition-[box-shadow,border-color,background-color] duration-[var(--dur-base)] hover:border-border-strong hover:shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-md)] mb-2",
         viewMode === "library" && "touch-none",
+        isDragging && "invisible",
         isTabDropTarget ? "border-accent bg-accent/[0.05] ring-2 ring-accent/55" : "border-border",
         isReorderTarget && "ring-2 ring-border-strong border-border-strong",
         isFresh && "ring-2 ring-accent/30",

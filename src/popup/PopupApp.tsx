@@ -979,6 +979,8 @@ export function PopupApp() {
                       hasAnyTabs={openTabs.length > 0}
                       isFiltering={openFilter.trim().length > 0}
                       reduceMotion={Boolean(reduceMotion)}
+                      onStashAll={() => void handleSaveTabs()}
+                      isStashing={isSaving}
                     />
                   ) : (
                     <>
@@ -1033,13 +1035,7 @@ export function PopupApp() {
                             items={visibleSessionIds}
                             strategy={verticalListSortingStrategy}
                           >
-                            <MarqueeArea
-                              enabled
-                              threshold={10}
-                              suspendRef={dragActiveRef}
-                              onMarquee={(ids) => setSelectedSessionIds(new Set(ids))}
-                              className="flex-1"
-                            >
+                            <div className="flex-1">
                               <SessionList
                                 sessions={visibleSessions}
                                 expandedIds={expandedIds}
@@ -1052,7 +1048,7 @@ export function PopupApp() {
                                 selectedIds={selectedSessionIds}
                                 {...sessionActions}
                               />
-                            </MarqueeArea>
+                            </div>
                           </SortableContext>
                         ) : (
                           <EmptyState
@@ -1180,32 +1176,41 @@ const SessionList = memo(function SessionList({
     >
         <AnimatePresence initial={false}>
           {sessions.map((session, i) => (
-            <SessionCard
+            <motion.div
               key={session.id}
-              session={session}
-              index={i}
-              isExpanded={expandedIds.has(session.id)}
-              isEditing={editingId === session.id}
-              isFresh={freshlySavedId === session.id}
-              isRestoring={restoreBurstId === session.id}
-              viewMode={viewMode}
-              draftName={editingId === session.id ? draftName : ""}
-              reduceMotion={reduceMotion}
-              selected={selectedIds.has(session.id)}
-              selectionActive={selectionActive}
-              onToggleSelected={onToggleSelected}
-              onDraftNameChange={onDraftNameChange}
-              onToggleExpanded={onToggleExpanded}
-              onRenameStart={onRenameStart}
-              onRenameSubmit={onRenameSubmit}
-              onRenameKeyDown={onRenameKeyDown}
-              onRestoreAll={onRestoreAll}
-              onRestoreTab={onRestoreTab}
-              onDeleteSession={onDeleteSession}
-              onDeleteForever={onDeleteForever}
-              onRestoreDeleted={onRestoreDeleted}
-              onRemoveTab={onRemoveTab}
-            />
+              initial={false}
+              animate={{ marginBottom: 8 }}
+              exit={reduceMotion
+                ? { opacity: 0 }
+                : { height: 0, marginBottom: 0, opacity: 0, transition: { duration: 0.2, ease: [0.4, 0, 1, 1] } }
+              }
+            >
+              <SessionCard
+                session={session}
+                index={i}
+                isExpanded={expandedIds.has(session.id)}
+                isEditing={editingId === session.id}
+                isFresh={freshlySavedId === session.id}
+                isRestoring={restoreBurstId === session.id}
+                viewMode={viewMode}
+                draftName={editingId === session.id ? draftName : ""}
+                reduceMotion={reduceMotion}
+                selected={selectedIds.has(session.id)}
+                selectionActive={selectionActive}
+                onToggleSelected={onToggleSelected}
+                onDraftNameChange={onDraftNameChange}
+                onToggleExpanded={onToggleExpanded}
+                onRenameStart={onRenameStart}
+                onRenameSubmit={onRenameSubmit}
+                onRenameKeyDown={onRenameKeyDown}
+                onRestoreAll={onRestoreAll}
+                onRestoreTab={onRestoreTab}
+                onDeleteSession={onDeleteSession}
+                onDeleteForever={onDeleteForever}
+                onRestoreDeleted={onRestoreDeleted}
+                onRemoveTab={onRemoveTab}
+              />
+            </motion.div>
           ))}
         </AnimatePresence>
     </motion.section>
@@ -1293,7 +1298,6 @@ const SessionCard = memo(function SessionCard({
       style={sortStyle}
       initial={reduceMotion ? false : { opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, height: 0, marginTop: 0, marginBottom: 0, transition: { duration: 0.2, ease: [0.4, 0, 1, 1] } }}
       whileHover={reduceMotion || isDragging || isAnyDragging ? undefined : { y: -3, transition: { type: "spring", stiffness: 420, damping: 26 } }}
       whileTap={reduceMotion || isAnyDragging ? undefined : { scale: 0.992 }}
       transition={{
@@ -1303,7 +1307,7 @@ const SessionCard = memo(function SessionCard({
       }}
       className={cn(
         // Accent spine is an inset box-shadow so it follows the rounded edge the full height (no corner clipping)
-        "group relative select-none overflow-hidden rounded-[var(--radius-card)] border bg-surface shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-sm)] transition-[box-shadow,border-color,background-color] duration-[var(--dur-base)] hover:border-border-strong hover:shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-md)] mb-2",
+        "group relative select-none overflow-hidden rounded-[var(--radius-card)] border bg-surface shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-sm)] transition-[box-shadow,border-color,background-color] duration-[var(--dur-base)] hover:border-border-strong hover:shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-md)]",
         viewMode === "library" && "touch-none",
         isDragging && "invisible",
         isTabDropTarget ? "border-accent bg-accent/[0.05] ring-2 ring-accent/55" : "border-border",
@@ -1740,7 +1744,7 @@ function StashSubTabs({
 
 /* ── Open Tabs view: pick tabs to stash ────────────────────────── */
 function OpenTabsView({
-  tabs, selectedIds, onToggle, onMarqueeSelect, onToggleAll, allSelected, hasAnyTabs, isFiltering, reduceMotion,
+  tabs, selectedIds, onToggle, onMarqueeSelect, onToggleAll, allSelected, hasAnyTabs, isFiltering, reduceMotion, onStashAll, isStashing,
 }: {
   tabs: chrome.tabs.Tab[];
   selectedIds: Set<number>;
@@ -1751,6 +1755,8 @@ function OpenTabsView({
   hasAnyTabs: boolean;
   isFiltering: boolean;
   reduceMotion: boolean;
+  onStashAll: () => void;
+  isStashing: boolean;
 }) {
   // Marquee drag selects exactly the tabs under the rectangle (replace).
   const onMarquee = useCallback(
@@ -1791,9 +1797,22 @@ function OpenTabsView({
           <CheckBox checked={allSelected} />
           {allSelected ? "Deselect all" : "Select all"}
         </button>
-        <span className="font-mono text-[11px] text-muted-2">
-          {selectedIds.size > 0 ? `${selectedIds.size} selected` : `${tabs.length} tabs`}
-        </span>
+        {selectedIds.size > 0 ? (
+          <span className="font-mono text-[11px] text-muted-2">{selectedIds.size} selected</span>
+        ) : (
+          <motion.button
+            type="button"
+            onClick={onStashAll}
+            disabled={isStashing}
+            whileHover={{ y: -1 }}
+            whileTap={{ scale: 0.95, y: 0 }}
+            transition={{ type: "spring", stiffness: 480, damping: 26 }}
+            className="flex items-center gap-1.5 rounded-full bg-[image:linear-gradient(180deg,var(--color-accent-hi)_0%,var(--color-accent)_55%,var(--color-accent-lo)_100%)] px-3 py-1.5 font-body text-[12px] font-semibold text-white shadow-[var(--shadow-primary)] transition-[box-shadow,filter] duration-[var(--dur-fast)] hover:shadow-[var(--shadow-primary-hover)] disabled:opacity-60"
+          >
+            {isStashing ? <Loader2 size={11} className="animate-spin" /> : <PanelTopClose size={11} />}
+            Stash all
+          </motion.button>
+        )}
       </div>
 
       <MarqueeArea enabled onMarquee={onMarquee} className="flex-1 min-h-[340px] rounded-[var(--radius-card)] border border-border bg-surface p-1.5 shadow-[var(--shadow-sm)]">

@@ -1,11 +1,13 @@
 import { CheckCircle2, Info, XCircle } from "lucide-react";
 import { Toaster as SonnerToaster, type ToasterProps } from "sonner";
+import { useIsDark } from "../../shared/theme";
 
 export function Toaster(props: ToasterProps) {
+  const isDark = useIsDark();
   return (
     <SonnerToaster
       position="bottom-center"
-      theme="light"
+      theme={isDark ? "dark" : "light"}
       gap={8}
       offset={14}
       icons={{

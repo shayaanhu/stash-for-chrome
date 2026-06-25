@@ -13,7 +13,7 @@ const TabsList = forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex items-center gap-1 rounded-full border border-border/70 bg-surface-muted p-1 shadow-[inset_0_1px_3px_rgba(20,35,80,0.14),inset_0_-1px_0_rgba(255,255,255,0.4)]",
+      "inline-flex items-center gap-1 rounded-full border border-border/70 bg-surface-muted p-1 shadow-[inset_0_1px_3px_var(--inset-groove),inset_0_-1px_0_var(--inset-hl-soft)]",
       className
     )}
     {...props}
@@ -39,7 +39,7 @@ const TabsTrigger = forwardRef<ElementRef<typeof TabsPrimitive.Trigger>, TabsTri
       {active && (
         <motion.span
           layoutId="stash-tab-indicator"
-          className="absolute inset-0 rounded-full bg-[image:linear-gradient(180deg,#FFFFFF_0%,var(--color-surface-subtle)_100%)] shadow-[0_1px_2px_rgba(20,35,80,0.13),0_3px_8px_-2px_rgba(20,35,80,0.17),inset_0_1px_0_rgba(255,255,255,0.9)]"
+          className="absolute inset-0 rounded-full bg-[image:var(--grad-raised)] shadow-[0_1px_2px_var(--inset-groove),0_3px_8px_-2px_var(--inset-groove),inset_0_1px_0_var(--inset-hl)]"
           transition={{ type: "spring", stiffness: 520, damping: 40 }}
         />
       )}

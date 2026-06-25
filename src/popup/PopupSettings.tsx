@@ -5,15 +5,19 @@ import {
   Download,
   ExternalLink,
   Keyboard,
+  Monitor,
+  Moon,
   MousePointerClick,
   PanelTopClose,
   Puzzle,
+  Sun,
   Upload,
 } from "lucide-react";
 import { motion } from "motion/react";
 import type { ChangeEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "../lib/utils";
+import { applyTheme } from "../shared/theme";
 import { sendBackgroundRequest } from "../shared/messages";
 import {
   SCHEMA_VERSION,
@@ -22,7 +26,7 @@ import {
   getSettings,
   normalizeSessions,
 } from "../shared/storage";
-import type { SaveTarget, StashSession, StashSettings } from "../shared/types";
+import type { SaveTarget, StashSession, StashSettings, ThemeMode } from "../shared/types";
 
 // The default save shortcut, written the way the user's platform shows it.
 const IS_MAC = typeof navigator !== "undefined" && /mac/i.test(navigator.userAgent);
@@ -55,6 +59,12 @@ export function PopupSettings({
     const response = await sendBackgroundRequest({ type: "UPDATE_SETTINGS", settings: next });
     if (response.ok && response.settings) setSettings(response.settings);
     flash("Saved");
+  }
+
+  function selectTheme(next: ThemeMode) {
+    applyTheme(next); // flip the palette instantly, before storage round-trips
+    setSettings((s) => ({ ...s, theme: next }));
+    void patch({ theme: next });
   }
 
   function handleExport() {
@@ -132,8 +142,22 @@ export function PopupSettings({
       </header>
 
       <div className="stash-scroll min-h-0 flex-1 overflow-y-auto px-4 pb-5">
+        <Row icon={<Moon size={16} />} title="Appearance" hint="Light, dark, or follow your system.">
+          <div className="grid grid-cols-3 gap-1 rounded-full border border-border/70 bg-surface-muted p-1 shadow-[inset_0_1px_3px_var(--inset-groove)]">
+            <Seg ariaLabel="Match system theme" active={(settings.theme ?? "system") === "system"} onClick={() => selectTheme("system")}>
+              <Monitor size={13} />
+            </Seg>
+            <Seg ariaLabel="Light theme" active={settings.theme === "light"} onClick={() => selectTheme("light")}>
+              <Sun size={13} />
+            </Seg>
+            <Seg ariaLabel="Dark theme" active={settings.theme === "dark"} onClick={() => selectTheme("dark")}>
+              <Moon size={13} />
+            </Seg>
+          </div>
+        </Row>
+
         <Row icon={<PanelTopClose size={16} />} title="Save target" hint="What the keyboard shortcut captures.">
-          <div className="grid grid-cols-2 gap-1 rounded-full border border-border/70 bg-surface-muted p-1 shadow-[inset_0_1px_3px_rgba(20,35,80,0.13)]">
+          <div className="grid grid-cols-2 gap-1 rounded-full border border-border/70 bg-surface-muted p-1 shadow-[inset_0_1px_3px_var(--inset-groove)]">
             <Seg active={settings.saveTarget === "current-window"} onClick={() => void patch({ saveTarget: "current-window" as SaveTarget })}>
               This window
             </Seg>
@@ -250,15 +274,16 @@ function Toggle({
   );
 }
 
-function Seg({ active, children, onClick }: { active: boolean; children: ReactNode; onClick: () => void }) {
+function Seg({ active, children, onClick, ariaLabel }: { active: boolean; children: ReactNode; onClick: () => void; ariaLabel?: string }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      aria-label={ariaLabel}
       className={cn(
-        "relative h-7 rounded-full px-3 text-[12px] font-semibold transition-[color,box-shadow] duration-[var(--dur-fast)] active:scale-[0.97]",
+        "relative flex h-7 items-center justify-center gap-1.5 rounded-full px-3 text-[12px] font-semibold transition-[color,box-shadow] duration-[var(--dur-fast)] active:scale-[0.97]",
         active
-          ? "bg-[image:linear-gradient(180deg,#FFFFFF_0%,var(--color-surface-subtle)_100%)] text-ink shadow-[0_1px_2px_rgba(20,35,80,0.13),inset_0_1px_0_rgba(255,255,255,0.9)]"
+          ? "bg-[image:var(--grad-raised)] text-ink shadow-[0_1px_2px_var(--inset-groove),inset_0_1px_0_var(--inset-hl)]"
           : "text-muted hover:text-ink",
       )}
     >

@@ -17,10 +17,10 @@ export function TrashEmpty({ reduceMotion }: { reduceMotion: boolean }) {
       transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
     >
       {/* recessed holding bay — carved into the surface (inset, not raised) */}
-      <div className="relative flex h-[104px] w-[228px] items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border/60 bg-surface-muted/70 shadow-[inset_0_2px_8px_rgba(20,35,80,0.14),inset_0_-1px_0_rgba(255,255,255,0.55)]">
+      <div className="relative flex h-[104px] w-[228px] items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border/60 bg-surface-muted/70 shadow-[inset_0_2px_8px_var(--inset-groove),inset_0_-1px_0_var(--inset-hl-soft)]">
         {/* cast shadow on the bay floor — shrinks as the glyph rises */}
         <motion.span
-          className="absolute bottom-[26px] h-[7px] w-[38px] rounded-full bg-ink/15 blur-[3px]"
+          className="absolute bottom-[26px] h-[7px] w-[38px] rounded-full bg-[var(--scrim)] blur-[3px]"
           animate={reduceMotion ? undefined : { scaleX: [1, 0.82, 1], opacity: [0.5, 0.32, 0.5] }}
           transition={reduceMotion ? undefined : { duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
         />

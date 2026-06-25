@@ -22,6 +22,7 @@ export const defaultSettings: StashSettings = {
   closeAfterStash: true,
   sessionSort: "manual",
   autoSave: false,
+  theme: "system",
 };
 
 export const AUTO_SAVE_INTERVAL_KEEP = 12;

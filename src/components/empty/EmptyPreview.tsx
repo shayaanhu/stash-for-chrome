@@ -50,11 +50,11 @@ export function EmptyPreview({ reduceMotion }: { reduceMotion: boolean }) {
               {DOTS.map((color, i) => (
                 <span
                   key={color}
-                  className="-ml-1.5 inline-flex h-[18px] w-[18px] rounded-full shadow-[var(--shadow-xs)] ring-[2px] ring-white first:ml-0"
+                  className="-ml-1.5 inline-flex h-[18px] w-[18px] rounded-full shadow-[var(--shadow-xs)] ring-[2px] ring-surface first:ml-0"
                   style={{ backgroundColor: color, zIndex: DOTS.length - i }}
                 />
               ))}
-              <span className="-ml-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full border border-border bg-chip px-1 font-mono text-[8.5px] font-semibold text-muted-2 ring-[2px] ring-white">
+              <span className="-ml-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full border border-border bg-chip px-1 font-mono text-[8.5px] font-semibold text-muted-2 ring-[2px] ring-surface">
                 +2
               </span>
             </div>

@@ -5,7 +5,9 @@
 @import "tw-animate-css";
 
 @theme {
-  /* Soft buttermilk & mid blue — warm cream canvas, blue ink + accent */
+  /* Soft buttermilk & mid blue — warm cream canvas, blue ink + accent.
+     These are the LIGHT defaults; the dark palette overrides the same token
+     names as inline styles on <html> (see the dark-theme note below). */
   --color-bg:           #F4EFE2;
   --color-surface:      #FFFDF6;
   --color-ink:          #1C336B;
@@ -61,7 +63,29 @@
   --dur-fast:     100ms;
   --dur-base:     160ms;
   --dur-slow:     240ms;
+
+  /* Effect tokens (gradients, inset highlights, scrims) — light defaults;
+     dark overrides come from theme.ts inline styles. */
+  --grad-raised:       linear-gradient(180deg, #FFFFFF 0%, var(--color-surface-subtle) 100%);
+  --grad-danger-soft:  linear-gradient(180deg, #FBE7E2 0%, #F6D8D0 100%);
+  --inset-hl:          rgba(255, 255, 255, 0.9);
+  --inset-hl-soft:     rgba(255, 255, 255, 0.8);
+  --inset-groove:      rgba(20, 35, 80, 0.13);
+  --scrim:             rgba(20, 35, 80, 0.28);
+  --footer-shadow:     0 -6px 16px -8px rgba(20, 35, 80, 0.18);
 }
+
+/* ── Dark theme: warm midnight navy. The two signature colours swap roles — the
+   cream canvas becomes deep blue, the blue ink becomes warm cream — so it reads
+   as Stash after dusk, not a generic grey dark mode.
+
+   The dark palette is applied as inline custom properties on <html> by
+   src/shared/theme.ts, NOT a `.dark { … }` stylesheet rule: Tailwind v4's build
+   optimizer strips rules that only redeclare custom properties, so such a block
+   vanishes from the bundle. Inline runtime styles override the :root defaults
+   above, cascade to the whole tree (including portals), and the @theme tokens
+   keep literal light values so all colour utilities still generate. The only
+   dark rule kept in CSS is the canvas texture: .dark .paper-bg below. ────────── */
 
 :root {
   --background:          var(--color-bg);
@@ -129,6 +153,19 @@ textarea,
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
 }
 .paper-bg > * { position: relative; z-index: 1; }
+
+/* Dark canvas: a faint blue glow top-right, deeper pooling bottom-left — the
+   night version of the buttermilk paper, keeping the same lit-from-a-corner feel. */
+.dark .paper-bg {
+  background-color: var(--color-bg);
+  background-image:
+    radial-gradient(120% 90% at 100% -10%, #1B2541 0%, transparent 55%),
+    radial-gradient(110% 80% at -8% 110%, #0B111E 0%, transparent 48%),
+    radial-gradient(90% 70% at 50% 45%, #14203A 0%, transparent 72%);
+}
+/* The grain is grayscale turbulence — on the dark canvas it reads as light
+   flecks, so we keep the same texture and just lift it slightly. */
+.dark .paper-bg::after { opacity: 0.5; }
 
 /* Display type */
 .font-display       { font-family: var(--font-display); font-optical-sizing: auto; }

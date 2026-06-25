@@ -11,7 +11,7 @@ const buttonVariants = cva(
         primary:
           "bg-[image:linear-gradient(180deg,var(--color-accent-hi)_0%,var(--color-accent)_52%,var(--color-accent-lo)_100%)] text-[#FFF2BD] shadow-[var(--shadow-primary)] hover:-translate-y-px hover:brightness-[1.06] hover:shadow-[var(--shadow-primary-hover)] active:translate-y-0 active:brightness-95 active:shadow-[var(--shadow-press)]",
         secondary:
-          "border border-border bg-[image:linear-gradient(180deg,#FFFFFF_0%,var(--color-surface-subtle)_100%)] text-ink shadow-[var(--shadow-raised)] hover:-translate-y-px hover:border-border-strong hover:shadow-[var(--shadow-raised-hover)] active:translate-y-0 active:shadow-[var(--shadow-press)]",
+          "border border-border bg-[image:var(--grad-raised)] text-ink shadow-[var(--shadow-raised)] hover:-translate-y-px hover:border-border-strong hover:shadow-[var(--shadow-raised-hover)] active:translate-y-0 active:shadow-[var(--shadow-press)]",
         ghost:
           "bg-transparent text-muted hover:bg-surface-muted hover:text-ink active:scale-[0.97]",
         danger:

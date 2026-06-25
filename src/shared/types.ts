@@ -2,6 +2,9 @@ export type SaveTarget = "current-window" | "all-windows";
 
 export type SessionSort = "manual" | "date-desc" | "date-asc" | "name-asc" | "size-desc";
 
+/** Appearance preference. "system" follows Chrome / the OS, live. */
+export type ThemeMode = "system" | "light" | "dark";
+
 export type StashSettings = {
   saveTarget: SaveTarget;
   restoreInNewWindow: boolean;
@@ -13,6 +16,8 @@ export type StashSettings = {
   sessionSort: SessionSort;
   /** Whether to auto-snapshot the current window every 5 minutes. */
   autoSave: boolean;
+  /** Light / dark / follow-system appearance. */
+  theme: ThemeMode;
 };
 
 export type StashTab = {

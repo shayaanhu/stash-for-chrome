@@ -58,6 +58,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../com
 import { cn } from "../lib/utils";
 import { sendBackgroundRequest } from "../shared/messages";
 import { getSessions, getSessionOrder, getSettings } from "../shared/storage";
+import { applyTheme } from "../shared/theme";
 import { applySessionOrder, matchesSession, autoNameSession, formatSessionDate } from "../shared/session-utils";
 import type { SaveTarget, SessionSort, StashSession, StashTab } from "../shared/types";
 
@@ -135,6 +136,7 @@ export function PopupApp() {
       setStickySelection(nextSettings.stickySelection);
       setCloseAfterStash(nextSettings.closeAfterStash);
       setSessionSort(nextSettings.sessionSort ?? "manual");
+      applyTheme(nextSettings.theme ?? "system");
     }, 50);
   }, []);
 
@@ -1694,7 +1696,7 @@ function ViewSwitch({
     { key: "stash", label: "Stash", count: stashCount, icon: <Layers size={14} />, flow: true },
   ];
   return (
-    <div className="relative flex flex-1 items-center gap-1 rounded-full border border-border-strong/60 bg-surface-muted p-1 shadow-[inset_0_1px_3px_rgba(20,35,80,0.13)]">
+    <div className="relative flex flex-1 items-center gap-1 rounded-full border border-border-strong/60 bg-surface-muted p-1 shadow-[inset_0_1px_3px_var(--inset-groove)]">
       {items.map((it) => {
         const active = value === it.key;
         return (
@@ -1747,7 +1749,7 @@ function StashSubTabs({
     { key: true, label: "Trash", count: trashCount, icon: <Trash2 size={12} /> },
   ];
   return (
-    <div className="relative flex items-center gap-0.5 rounded-full border border-border-strong/50 bg-surface-muted p-0.5 shadow-[inset_0_1px_2px_rgba(20,35,80,0.10)]">
+    <div className="relative flex items-center gap-0.5 rounded-full border border-border-strong/50 bg-surface-muted p-0.5 shadow-[inset_0_1px_2px_var(--inset-groove)]">
       {items.map((it) => {
         const active = showTrash === it.key;
         const danger = it.key; // the Trash segment tints red when active
@@ -1765,8 +1767,8 @@ function StashSubTabs({
                 className={cn(
                   "absolute inset-0 rounded-full",
                   danger
-                    ? "bg-[image:linear-gradient(180deg,#FBE7E2_0%,#F6D8D0_100%)] shadow-[0_1px_2px_rgba(80,20,20,0.14),inset_0_1px_0_rgba(255,255,255,0.8)]"
-                    : "bg-[image:linear-gradient(180deg,#FFFFFF_0%,var(--color-surface-subtle)_100%)] shadow-[0_1px_2px_rgba(20,35,80,0.13),inset_0_1px_0_rgba(255,255,255,0.9)]",
+                    ? "bg-[image:var(--grad-danger-soft)] shadow-[0_1px_2px_rgba(80,20,20,0.14),inset_0_1px_0_var(--inset-hl-soft)]"
+                    : "bg-[image:var(--grad-raised)] shadow-[0_1px_2px_var(--inset-groove),inset_0_1px_0_var(--inset-hl)]",
                 )}
               />
             )}
@@ -1959,7 +1961,7 @@ function StashFooter({
       animate={{ y: 0, opacity: 1 }}
       exit={reduceMotion ? { opacity: 0 } : { y: 64, opacity: 0 }}
       transition={{ type: "spring", stiffness: 460, damping: 34 }}
-      className="absolute inset-x-0 bottom-0 z-10 border-t border-border bg-surface px-4 py-3 shadow-[0_-6px_16px_-8px_rgba(20,35,80,0.18)]"
+      className="absolute inset-x-0 bottom-0 z-10 border-t border-border bg-surface px-4 py-3 shadow-[var(--footer-shadow)]"
     >
       <motion.button
         type="button"
@@ -1999,7 +2001,7 @@ function BulkActionBar({
       animate={{ y: 0, opacity: 1 }}
       exit={reduceMotion ? { opacity: 0 } : { y: 64, opacity: 0 }}
       transition={{ type: "spring", stiffness: 460, damping: 34 }}
-      className="absolute inset-x-0 bottom-0 z-10 flex items-center gap-2 border-t border-border bg-surface px-4 py-3 shadow-[0_-6px_16px_-8px_rgba(20,35,80,0.18)]"
+      className="absolute inset-x-0 bottom-0 z-10 flex items-center gap-2 border-t border-border bg-surface px-4 py-3 shadow-[var(--footer-shadow)]"
     >
       <button
         type="button"
@@ -2017,7 +2019,7 @@ function BulkActionBar({
           whileHover={{ scale: 1.015 }}
           whileTap={{ scale: 0.98 }}
           transition={{ type: "spring", stiffness: 480, damping: 26 }}
-          className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full border border-border bg-[image:linear-gradient(180deg,#FFFFFF_0%,var(--color-surface-subtle)_100%)] font-body text-[13px] font-semibold text-accent-text shadow-[var(--shadow-raised)] transition-[box-shadow] duration-[var(--dur-fast)] hover:shadow-[var(--shadow-raised-hover)]"
+          className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full border border-border bg-[image:var(--grad-raised)] font-body text-[13px] font-semibold text-accent-text shadow-[var(--shadow-raised)] transition-[box-shadow] duration-[var(--dur-fast)] hover:shadow-[var(--shadow-raised-hover)]"
         >
           {inTrash ? <Undo2 size={14} /> : <RotateCcw size={14} />}
           Restore
@@ -2084,7 +2086,7 @@ function StashSheet({
   return (
     <motion.div
       data-keep-selection
-      className="absolute inset-0 z-40 flex flex-col justify-end bg-ink/25"
+      className="absolute inset-0 z-40 flex flex-col justify-end bg-[var(--scrim)]"
       initial={reduceMotion ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -2117,7 +2119,7 @@ function StashSheet({
         </div>
 
         {/* New group / Add to existing */}
-        <div className="relative flex items-center gap-0.5 rounded-full border border-border-strong/50 bg-surface-muted p-0.5 shadow-[inset_0_1px_2px_rgba(20,35,80,0.10)]">
+        <div className="relative flex items-center gap-0.5 rounded-full border border-border-strong/50 bg-surface-muted p-0.5 shadow-[inset_0_1px_2px_var(--inset-groove)]">
           {tabs.map((t) => {
             const active = mode === t.key;
             return (
@@ -2131,7 +2133,7 @@ function StashSheet({
                   <motion.span
                     layoutId="stash-sheet-pill"
                     transition={{ type: "spring", stiffness: 520, damping: 38 }}
-                    className="absolute inset-0 rounded-full bg-[image:linear-gradient(180deg,#FFFFFF_0%,var(--color-surface-subtle)_100%)] shadow-[0_1px_2px_rgba(20,35,80,0.13),inset_0_1px_0_rgba(255,255,255,0.9)]"
+                    className="absolute inset-0 rounded-full bg-[image:var(--grad-raised)] shadow-[0_1px_2px_var(--inset-groove),inset_0_1px_0_var(--inset-hl)]"
                   />
                 )}
                 <span className={cn("relative z-10 flex items-center gap-1.5 transition-colors duration-[var(--dur-fast)]", active ? "text-ink" : "text-muted hover:text-ink")}>
@@ -2389,7 +2391,7 @@ function RestoreButton({
           whileHover={{ scale: 1.12 }}
           whileTap={{ scale: 0.84 }}
           transition={{ type: "spring", stiffness: 480, damping: 20 }}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-[image:linear-gradient(180deg,#FFFFFF_0%,var(--color-surface-subtle)_100%)] text-accent-text shadow-[var(--shadow-raised)] transition-[color,box-shadow,border-color] duration-[var(--dur-fast)] hover:border-accent hover:bg-accent hover:bg-none hover:text-[#FFF2BD] hover:shadow-[var(--shadow-primary)]"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-[image:var(--grad-raised)] text-accent-text shadow-[var(--shadow-raised)] transition-[color,box-shadow,border-color] duration-[var(--dur-fast)] hover:border-accent hover:bg-accent hover:bg-none hover:text-[#FFF2BD] hover:shadow-[var(--shadow-primary)]"
         >
           {icon}
         </motion.button>
@@ -2437,7 +2439,7 @@ function FaviconSpine({
         </motion.span>
       ))}
       {overflow > 0 && (
-        <span className="-ml-1.5 inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full border border-border bg-chip px-1 font-mono text-[9px] font-semibold text-muted-2 ring-[2px] ring-white">
+        <span className="-ml-1.5 inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full border border-border bg-chip px-1 font-mono text-[9px] font-semibold text-muted-2 ring-[2px] ring-surface">
           +{overflow}
         </span>
       )}
@@ -2465,7 +2467,7 @@ function Favicon({ tab, spine = false }: { tab: StashTab; spine?: boolean }) {
 
   const cls = cn(
     "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-chip)] border border-border bg-chip object-cover text-[9px] font-bold text-muted-2",
-    spine && "ring-[2px] ring-white shadow-[var(--shadow-xs)]",
+    spine && "ring-[2px] ring-surface shadow-[var(--shadow-xs)]",
   );
 
   const src = tab.url ? chromeFaviconUrl(tab.url) : tab.favicon;
@@ -2506,7 +2508,7 @@ function SaveBurstAnim({ burst, reduceMotion }: { burst: SaveBurst; reduceMotion
 function SessionCardGhost({ session }: { session: StashSession }) {
   return (
     <div
-      className="w-[336px] overflow-hidden rounded-[var(--radius-card)] border border-accent/25 bg-surface shadow-[inset_4px_0_0_0_var(--color-accent),0_18px_36px_-10px_rgba(20,35,80,0.30),0_6px_14px_-4px_rgba(20,35,80,0.16)]"
+      className="w-[336px] overflow-hidden rounded-[var(--radius-card)] border border-accent/25 bg-surface shadow-[inset_4px_0_0_0_var(--color-accent),var(--shadow-pop)]"
       style={{ transform: "rotate(-1.2deg)" }}
     >
       <div className="flex items-center gap-2 py-2.5 pl-2.5 pr-2.5">

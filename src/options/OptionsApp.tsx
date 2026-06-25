@@ -118,7 +118,7 @@ export function OptionsApp() {
           title="Default save target"
           description="Choose what the popup and keyboard shortcut capture."
         >
-          <div className="grid grid-cols-2 gap-1 rounded-full border border-border/70 bg-surface-muted p-1 shadow-[inset_0_1px_3px_rgba(20,35,80,0.13)]">
+          <div className="grid grid-cols-2 gap-1 rounded-full border border-border/70 bg-surface-muted p-1 shadow-[inset_0_1px_3px_var(--inset-groove)]">
             <SegmentButton active={settings.saveTarget === "current-window"} onClick={() => void setSaveTarget("current-window")}>
               Current window
             </SegmentButton>
@@ -213,7 +213,7 @@ function SegmentButton({ active, children, onClick }: { active: boolean; childre
       className={cn(
         "relative h-8 rounded-full px-3 text-sm font-semibold transition-[color,box-shadow,transform] duration-[var(--dur-fast)] ease-[var(--ease-std)] active:scale-[0.97]",
         active
-          ? "bg-[image:linear-gradient(180deg,#FFFFFF_0%,var(--color-surface-subtle)_100%)] text-ink shadow-[0_1px_2px_rgba(20,35,80,0.13),inset_0_1px_0_rgba(255,255,255,0.9)]"
+          ? "bg-[image:var(--grad-raised)] text-ink shadow-[0_1px_2px_var(--inset-groove),inset_0_1px_0_var(--inset-hl)]"
           : "text-muted hover:text-ink",
       )}
     >

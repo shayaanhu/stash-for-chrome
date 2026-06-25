@@ -124,9 +124,11 @@ async function doSetupContextMenus(): Promise<void> {
 
   // Don't combine "all" with "tab" — Chrome drops "tab" silently when mixed.
   // Explicit list covers every page context plus the tab-strip (Chrome 116+).
-  const ctx: chrome.contextMenus.ContextType[] = [
+  // "tab" (the tab-strip context, Chrome 116+) isn't in this @types/chrome
+  // version's ContextType union yet, so assert the whole list to the field type.
+  const ctx = [
     "page", "frame", "selection", "link", "editable", "image", "video", "audio", "tab",
-  ];
+  ] as unknown as chrome.contextMenus.CreateProperties["contexts"];
 
   const ack = () => { void chrome.runtime.lastError; };
 
@@ -410,9 +412,17 @@ async function restoreSession(sessionId: string, inNewWindow: boolean) {
   return { session, restore };
 }
 
+// Above this many tabs, a restore parks each tab unloaded instead of letting them
+// all load at once — loading dozens of pages simultaneously can exhaust memory and
+// crash the browser. Smaller restores load eagerly so the tabs are ready to use.
+const LAZY_RESTORE_THRESHOLD = 10;
+
 /** Open URLs one at a time so a single failure can't abort the whole group. */
 async function openUrlsIntoWindow(urls: string[], windowId?: number): Promise<RestoreSummary> {
   const fileAccess = await isAllowedFileSchemeAccess();
+  // Big restores park tabs unloaded (create + discard) so we never have more than
+  // ~one page loading at a time. Each parked tab reloads when the user focuses it.
+  const lazy = urls.length > LAZY_RESTORE_THRESHOLD;
   let opened = 0;
   let failed = 0;
   let needsFileAccess = false;
@@ -426,7 +436,7 @@ async function openUrlsIntoWindow(urls: string[], windowId?: number): Promise<Re
       continue;
     }
     try {
-      await createTabInWindow(url, windowId);
+      await createTabInWindow(url, windowId, lazy);
       opened++;
     } catch {
       failed++;
@@ -519,15 +529,30 @@ async function createTab(url: string): Promise<void> {
   });
 }
 
-function createTabInWindow(url: string, windowId?: number): Promise<void> {
+/**
+ * Create one restored tab, inactive so it never steals focus. When `lazy`, the
+ * tab is discarded immediately after creation: Chrome unloads the page, parking it
+ * in the strip (title + favicon kept) and reloading it only when the user focuses
+ * it. Because the caller awaits this sequentially, a parked restore keeps roughly
+ * one page loading at a time, so even a huge session can't spike memory and crash
+ * the browser. Discard is best-effort — if Chrome refuses, the tab stays loaded.
+ */
+function createTabInWindow(url: string, windowId: number | undefined, lazy: boolean): Promise<void> {
   return new Promise((resolve, reject) => {
-    // discarded: true parks the tab in the strip without loading the page.
-    // Chrome loads it on demand when the user focuses it — prevents the
-    // memory spike that crashes the browser when restoring large sessions.
-    chrome.tabs.create({ url, windowId, active: false, discarded: true }, () => {
+    chrome.tabs.create({ url, windowId, active: false }, (tab) => {
       const error = chrome.runtime.lastError;
-      if (error) reject(new Error(error.message));
-      else resolve();
+      if (error) {
+        reject(new Error(error.message));
+        return;
+      }
+      if (lazy && typeof tab?.id === "number") {
+        chrome.tabs.discard(tab.id, () => {
+          void chrome.runtime.lastError; // ignore: a tab that won't discard just stays loaded
+          resolve();
+        });
+      } else {
+        resolve();
+      }
     });
   });
 }

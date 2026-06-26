@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "zip": "wxt zip",
-    "screenshots": "node .aso/render_screenshots.mjs",
+    "screenshots": "wxt build && node .aso/render_store.mjs",
+    "screenshots:legacy": "node .aso/render_screenshots.mjs",
     "icons": "node .aso/render_icons.mjs"
   },
   "dependencies": {

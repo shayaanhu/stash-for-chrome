@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://stashyourtabs.com/sitemap.xml

@@ -114,11 +114,11 @@ function frame({ kicker, head, sub, imgB64, bg, popupDark }) {
        radial-gradient(ellipse 60% 60% at 100% 100%, rgba(20,32,70,0.9) 0%, transparent 55%),
        radial-gradient(ellipse 40% 45% at 78% 18%, rgba(99,140,240,0.22) 0%, transparent 60%)`;
   const gridColor = cream ? "rgba(20,35,80,0.055)" : "rgba(255,255,255,0.05)";
-  const headColor = cream ? "#1C336B" : "#FFFDF6";
-  const subColor = cream ? "#4A5E92" : "#AFC0E6";
-  const pillBg = cream ? "rgba(28,51,107,0.06)" : "rgba(255,247,224,0.08)";
-  const pillBorder = cream ? "rgba(28,51,107,0.16)" : "rgba(255,247,224,0.16)";
-  const pillText = cream ? "#2353BD" : "#CFE0FF";
+  const headColor = cream ? "#152650" : "#FFFFFF";
+  const subColor = cream ? "#2E4270" : "#D2DEF6";
+  const chipBg = cream ? "#265CC9" : "#5488EE";
+  const chipText = "#FFFFFF";
+  const chipShadow = cream ? "rgba(38,92,201,0.42)" : "rgba(0,0,0,0.40)";
   const deviceBorder = popupDark
     ? (cream ? "rgba(20,35,80,0.16)" : "rgba(150,180,255,0.22)")
     : (cream ? "rgba(20,35,80,0.10)" : "rgba(255,255,255,0.5)");
@@ -136,13 +136,14 @@ function frame({ kicker, head, sub, imgB64, bg, popupDark }) {
     background-image:radial-gradient(circle, ${gridColor} 1px, transparent 1px);background-size:30px 30px;
     -webkit-mask-image:linear-gradient(80deg,#000 35%,transparent 72%);}
   .left{position:absolute;left:92px;top:0;bottom:0;width:560px;display:flex;flex-direction:column;justify-content:center;z-index:5}
-  .eyebrow{display:flex;align-items:center;gap:15px;width:fit-content;margin-bottom:24px;
-    font-family:'Jakarta',sans-serif;font-size:19px;font-weight:800;letter-spacing:.10em;color:${pillText};text-transform:uppercase;}
-  .eyebrow::before{content:'';width:32px;height:3px;border-radius:2px;background:${pillText};opacity:.9;flex-shrink:0;}
-  h1{font-family:'Fraunces',Georgia,serif;color:${headColor};font-weight:600;font-size:62px;line-height:1.04;letter-spacing:-.02em;
-    font-variation-settings:'opsz' 60;margin-bottom:24px;display:flex;flex-direction:column}
+  .eyebrow{display:inline-flex;align-items:center;width:fit-content;margin-bottom:26px;
+    padding:10px 16px;border-radius:10px;background:${chipBg};color:${chipText};
+    font-family:'Jakarta',sans-serif;font-size:15px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+    box-shadow:0 3px 12px -2px ${chipShadow};}
+  h1{font-family:'Fraunces',Georgia,serif;color:${headColor};font-weight:680;font-size:63px;line-height:1.03;letter-spacing:-.022em;
+    font-variation-settings:'opsz' 62;margin-bottom:22px;display:flex;flex-direction:column}
   h1 span{display:block}
-  .sub{color:${subColor};font-size:21px;line-height:1.5;font-weight:400;max-width:430px}
+  .sub{color:${subColor};font-size:22px;line-height:1.5;font-weight:560;max-width:445px}
   .device{position:absolute;right:118px;top:50%;transform:translateY(-50%) rotate(-1deg);z-index:4;
     width:402px;border-radius:22px;overflow:hidden;border:1px solid ${deviceBorder};box-shadow:${deviceShadow};}
   .device img{display:block;width:100%}
@@ -309,48 +310,46 @@ const fontFaces = `
   @font-face{font-family:'Fraunces';src:url(data:font/woff2;base64,${frauncesB64}) format('woff2');font-weight:100 900;}
   @font-face{font-family:'Jakarta';src:url(data:font/woff2;base64,${jakartaB64}) format('woff2');font-weight:200 800;}`;
 
-function marqueeFrame({ head, sub, imgB64 }) {
+// Marquee: clean branding, NO app screenshot. Centered logo + headline + sub.
+function marqueeFrame({ head, sub }) {
   const headHtml = head.split("\n").map((l) => `<span>${l}</span>`).join("");
   return `<!doctype html><html><head><meta charset="utf-8"><style>${fontFaces}
   *{margin:0;padding:0;box-sizing:border-box}
   body{width:1400px;height:560px;overflow:hidden;position:relative;font-family:'Jakarta',sans-serif;background:#0E1A38;}
   ${promoBg}
-  .left{position:absolute;left:96px;top:0;bottom:0;width:660px;display:flex;flex-direction:column;justify-content:center;z-index:5}
-  .brand{display:flex;align-items:center;gap:15px;margin-bottom:30px}
-  .brand .logo{width:52px;height:52px}.brand .logo span{font-size:30px}
-  .brandname{font-size:34px}
-  h1{font-family:'Fraunces',Georgia,serif;color:#FFFDF6;font-weight:600;font-size:56px;line-height:1.05;letter-spacing:-.02em;font-variation-settings:'opsz' 56;margin-bottom:22px;display:flex;flex-direction:column}
-  .sub{color:#AFC0E6;font-size:21px;line-height:1.5;max-width:500px}
-  .device{position:absolute;right:104px;top:52px;z-index:4;width:406px;transform:rotate(-1deg);border-radius:22px 22px 0 0;overflow:hidden;border:1px solid rgba(150,180,255,0.22);border-bottom:0;box-shadow:0 40px 80px -20px rgba(0,0,0,.55),0 0 70px -8px rgba(80,134,242,0.30);}
-  .device img{display:block;width:100%}
+  .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 90px;z-index:5}
+  .brand{display:flex;align-items:center;gap:17px;margin-bottom:34px}
+  .brand .logo{width:60px;height:60px}.brand .logo span{font-size:34px}
+  .brandname{font-size:40px}
+  h1{font-family:'Fraunces',Georgia,serif;color:#FFFFFF;font-weight:680;font-size:62px;line-height:1.04;letter-spacing:-.022em;font-variation-settings:'opsz' 62;margin-bottom:24px;display:flex;flex-direction:column}
+  .sub{color:#D2DEF6;font-size:24px;line-height:1.5;font-weight:560;max-width:800px}
   </style></head><body>
   <div class="glow"></div><div class="grid"></div>
-  <div class="left">
+  <div class="center">
     <div class="brand"><span class="logo"><span>S</span></span><span class="brandname">Stash</span></div>
     <h1>${headHtml}</h1><p class="sub">${sub}</p>
   </div>
-  <div class="device"><img src="data:image/png;base64,${imgB64}"/></div>
   </body></html>`;
 }
 
-function smallFrame({ head, tag }) {
-  const headHtml = head.split("\n").map((l) => `<span>${l}</span>`).join("");
+// Small tile: the brand mark people see in search results. Logo-forward, like the
+// original but with sharper copy. No app screenshot.
+function smallFrame({ tag }) {
+  const tagHtml = tag.split("\n").map((l) => `<span>${l}</span>`).join("");
   return `<!doctype html><html><head><meta charset="utf-8"><style>${fontFaces}
   *{margin:0;padding:0;box-sizing:border-box}
   body{width:440px;height:280px;overflow:hidden;position:relative;font-family:'Jakarta',sans-serif;background:#0E1A38;}
   ${promoBg}
-  .wrap{position:absolute;inset:0;padding:30px 34px 28px;display:flex;flex-direction:column;justify-content:space-between;z-index:5}
-  .brand{display:flex;align-items:center;gap:12px}
-  .brand .logo{width:40px;height:40px}.brand .logo span{font-size:23px}
-  .brandname{font-size:27px}
-  h1{font-family:'Fraunces',Georgia,serif;color:#FFFDF6;font-weight:600;font-size:35px;line-height:1.08;letter-spacing:-.02em;font-variation-settings:'opsz' 35;display:flex;flex-direction:column}
-  .tag{color:#AFC0E6;font-size:14.5px;font-weight:600;letter-spacing:.01em}
+  .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 30px;z-index:5}
+  .brand{display:flex;align-items:center;gap:16px;margin-bottom:22px}
+  .brand .logo{width:66px;height:66px;border-radius:18px}.brand .logo span{font-size:38px}
+  .brandname{font-size:46px}
+  .tag{color:#CBD9F6;font-size:16.5px;font-weight:600;line-height:1.45;display:flex;flex-direction:column}
   </style></head><body>
   <div class="glow"></div><div class="grid"></div>
-  <div class="wrap">
+  <div class="center">
     <div class="brand"><span class="logo"><span>S</span></span><span class="brandname">Stash</span></div>
-    <h1>${headHtml}</h1>
-    <div class="tag">${tag}</div>
+    <div class="tag">${tagHtml}</div>
   </div>
   </body></html>`;
 }
@@ -387,18 +386,14 @@ for (const s of shotsToRender) {
 }
 
 if (!only || only.startsWith("promo")) {
-  // Marquee shows a real "search inside pages" popup — the strongest flex.
-  const marqueePopup = await capture({ theme: "light", state: "search", query: "cherry blossom", file: "_marquee" });
   await renderHtml(marqueeFrame({
     head: "Save your tabs.\nFind them by what's inside.",
-    sub: "A private tab manager that remembers the text on every page you save, so you can search for one later by a phrase you read.",
-    imgB64: marqueePopup,
+    sub: "A private tab manager that remembers the text on every page you save, so you can find it later by a phrase you read.",
   }), { w: 1400, h: 560, out: join(outDir, "promo-marquee.jpg") });
   console.log("wrote promo-marquee.jpg");
 
   await renderHtml(smallFrame({
-    head: "Find any tab by\nwhat's inside it.",
-    tag: "Private, on-device tab manager",
+    tag: "Save your tabs. Search inside them.",
   }), { w: 440, h: 280, out: join(outDir, "promo-small.jpg") });
   console.log("wrote promo-small.jpg");
 }

@@ -11,7 +11,7 @@ export default defineConfig({
   manifest: {
     name: "Stash - Tab Manager, Save & Restore Tabs",
     description:
-      "Save your open tabs in one click to free up memory, then restore them any time. A fast, private tab manager that ends tab clutter.",
+      "Save your open tabs in one click, then find any page later by the words inside it, not just the title. Private, all on your device.",
     version: "1.3.0",
     minimum_chrome_version: "116",
     permissions: ["contextMenus", "storage", "unlimitedStorage", "tabs", "alarms", "favicon", "scripting"],

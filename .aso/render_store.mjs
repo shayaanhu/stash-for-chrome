@@ -37,8 +37,8 @@ const sessions = [
   { id: "s2", name: "Japan trip", createdAt: now - 6 * H, tabs: [
     t("https://www.google.com/maps", "Google Maps"),
     t("https://www.booking.com", "Booking.com"),
-    t("https://www.tripadvisor.com", "Tripadvisor"),
-    t("https://en.wikipedia.org/wiki/Kyoto", "Kyoto - Wikipedia"),
+    { id: "trip-kyoto", url: "https://www.tripadvisor.com/Tourism-Kyoto", title: "Tripadvisor", favicon: "", capturedAt: now },
+    { id: "kyoto", url: "https://en.wikipedia.org/wiki/Kyoto", title: "Kyoto - Wikipedia", favicon: "", capturedAt: now },
   ]},
   { id: "s3", name: "Design ideas", createdAt: now - D, tabs: [
     t("https://dribbble.com", "Dribbble"),
@@ -64,30 +64,42 @@ const sessions = [
 const baseSettings = { saveTarget: "current-window", restoreInNewWindow: false, stickySelection: false, closeAfterStash: true, sessionSort: "manual", autoSave: true };
 const order = sessions.map((s) => s.id);
 
+// Captured page content (IndexedDB "stash-content") so the SEARCH shot can show
+// the headline feature: matching a phrase that lives INSIDE a page, not in its
+// title or URL. Two travel pages that both mention "cherry blossom" in the body.
+const seedPages = [
+  { id: "kyoto", url: "https://en.wikipedia.org/wiki/Kyoto", title: "Kyoto - Wikipedia", capturedAt: now,
+    html: "<h1>Kyoto</h1><p>Kyoto served as the capital of Japan for over a thousand years.</p><p>Maruyama Park is the city's most popular spot for cherry blossom viewing, its giant weeping cherry tree lit up after dark in early April.</p>",
+    text: "Kyoto served as the capital of Japan for over a thousand years and remains its cultural heart. Maruyama Park is the city's most popular spot for cherry blossom viewing, its giant weeping cherry tree lit up after dark in early April. The Philosopher's Path, a stone walkway lined with hundreds of cherry trees, draws crowds during hanami season." },
+  { id: "trip-kyoto", url: "https://www.tripadvisor.com/Tourism-Kyoto", title: "Tripadvisor", capturedAt: now,
+    html: "<h1>Kyoto travel guide</h1><p>The best time to visit is late March to early April, when the cherry blossom season peaks and the temple gardens turn pink.</p>",
+    text: "Planning a trip to Kyoto. The best time to visit is late March to early April, when the cherry blossom season peaks and the temple gardens turn pink. Book accommodation months ahead, as hotels near Gion and Arashiyama fill quickly during peak bloom." },
+];
+
 // ── Shots: each drives a real state, then captions a branded frame ───────────
 // Alternating backgrounds (cream / navy / cream / navy / cream), like the
 // original set. The dark-theme popup sits on a CREAM frame so it pops.
 const shots = [
   { file: "shot-1.jpg", theme: "light", state: "library", bg: "cream",
     kicker: "ONE-CLICK TAB MANAGER",
-    head: "Save your tabs.\nGet them all back.",
-    sub: "Stash every open tab into a tidy, named session, then reopen the whole set whenever you want." },
-  { file: "shot-2.jpg", theme: "light", state: "expanded", bg: "navy",
-    kicker: "RESTORE",
-    head: "The whole set,\nor just one tab.",
-    sub: "Open a session to see every page inside. Bring it all back, or pick out a single tab." },
-  { file: "shot-3.jpg", theme: "dark", state: "library", bg: "cream",
+    head: "Save every tab.\nGet them all back.",
+    sub: "Stash tucks every open tab into a tidy, named group, then brings the whole set back whenever you want." },
+  { file: "shot-2.jpg", theme: "light", state: "search-all", bg: "navy", query: "react",
+    kicker: "ONE SEARCH FOR EVERYTHING",
+    head: "Find any tab,\nopen or saved.",
+    sub: "One search spans every tab you have open and everything you've stashed. Type a word and jump straight to it." },
+  { file: "shot-3.jpg", theme: "light", state: "search", bg: "cream", query: "cherry blossom",
+    kicker: "SEARCH INSIDE YOUR PAGES",
+    head: "Find it by what\nwas on the page.",
+    sub: "Stash remembers the words inside every page you save, so you can find one by a phrase you read, even when it was never in the title." },
+  { file: "shot-4.jpg", theme: "light", state: "settings", bg: "navy",
+    kicker: "PRIVATE, AND AUTOMATIC",
+    head: "Auto-saved.\nNever uploaded.",
+    sub: "Stash snapshots your tabs on a timer and keeps everything, including the page text it saves, on your device. No account, no servers." },
+  { file: "shot-5.jpg", theme: "dark", state: "library", bg: "cream",
     kicker: "LIGHT OR DARK",
     head: "Easy on the eyes,\nday or night.",
-    sub: "A clean, modern interface that follows your system theme, or lock it light or dark." },
-  { file: "shot-4.jpg", theme: "light", state: "search", bg: "navy",
-    kicker: "SEARCH",
-    head: "Find any tab\nin seconds.",
-    sub: "Search across every session, page title, and URL. No more hunting through windows." },
-  { file: "shot-5.jpg", theme: "light", state: "settings", bg: "cream",
-    kicker: "PRIVATE BY DEFAULT",
-    head: "Auto-saved.\nNever uploaded.",
-    sub: "Stash snapshots your tabs automatically and keeps everything on your device. No account, no servers." },
+    sub: "A clean, modern interface that follows your system theme, or lock it to light or dark whenever you like." },
 ];
 
 function frame({ kicker, head, sub, imgB64, bg, popupDark }) {
@@ -124,14 +136,9 @@ function frame({ kicker, head, sub, imgB64, bg, popupDark }) {
     background-image:radial-gradient(circle, ${gridColor} 1px, transparent 1px);background-size:30px 30px;
     -webkit-mask-image:linear-gradient(80deg,#000 35%,transparent 72%);}
   .left{position:absolute;left:92px;top:0;bottom:0;width:560px;display:flex;flex-direction:column;justify-content:center;z-index:5}
-  .pill{display:inline-flex;align-items:center;gap:9px;width:fit-content;margin-bottom:30px;
-    padding:7px 16px 7px 8px;border-radius:999px;background:${pillBg};border:1px solid ${pillBorder};
-    font-size:12.5px;font-weight:700;letter-spacing:.14em;color:${pillText};}
-  .pdot{width:22px;height:22px;border-radius:7px;background:linear-gradient(180deg,#FFFDF6,#F2E9CF);position:relative;overflow:hidden;flex-shrink:0;
-    border:1px solid rgba(20,35,80,0.12);box-shadow:0 1px 2px rgba(0,0,0,.2)}
-  .pdot::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:#285CCC}
-  .pdot span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;
-    font-weight:700;font-size:12px;color:#1C336B;font-variation-settings:'opsz' 9}
+  .eyebrow{display:flex;align-items:center;gap:15px;width:fit-content;margin-bottom:24px;
+    font-family:'Jakarta',sans-serif;font-size:19px;font-weight:800;letter-spacing:.10em;color:${pillText};text-transform:uppercase;}
+  .eyebrow::before{content:'';width:32px;height:3px;border-radius:2px;background:${pillText};opacity:.9;flex-shrink:0;}
   h1{font-family:'Fraunces',Georgia,serif;color:${headColor};font-weight:600;font-size:62px;line-height:1.04;letter-spacing:-.02em;
     font-variation-settings:'opsz' 60;margin-bottom:24px;display:flex;flex-direction:column}
   h1 span{display:block}
@@ -144,7 +151,7 @@ function frame({ kicker, head, sub, imgB64, bg, popupDark }) {
   </style></head><body>
   <div class="glow"></div><div class="grid"></div><div class="reflect"></div>
   <div class="left">
-    <div class="pill"><span class="pdot"><span>S</span></span>${kicker}</div>
+    <div class="eyebrow">${kicker}</div>
     <h1>${headHtml}</h1>
     <p class="sub">${sub}</p>
   </div>
@@ -176,30 +183,38 @@ async function warmFavicons(urls) {
   await sleep(800);
 }
 
-// Seed via a fresh service-worker handle BEFORE the popup opens (re-querying the
-// target wakes an idle MV3 worker), so the app reads the library on first mount.
-// Seeding then reloading the page instead desyncs React's delegated click
-// handlers from automation, so the nav stops responding — avoid that path.
-async function seedStorage(theme) {
-  // The MV3 worker can be evicted between shots; retry against a fresh handle.
-  for (let attempt = 0; attempt < 4; attempt++) {
-    try {
-      const swt = await browser.waitForTarget((x) => x.type() === "service_worker", { timeout: 20000 });
-      const w = await swt.worker();
-      await w.evaluate(async (s, settings, ord, th) => {
-        await chrome.storage.local.set({
-          "stash.sessions": s,
-          "stash.settings": { ...settings, theme: th },
-          "stash.session-order": ord,
-          "stash.meta": { version: 1 },
-        });
-      }, sessions, baseSettings, order, theme);
-      return;
-    } catch (e) {
-      if (attempt === 3) throw e;
-      await sleep(500);
+// Seed sessions + captured page content from the popup's OWN extension context
+// (it has full chrome + IndexedDB access). Done AFTER mount: the app's
+// storage.onChanged listener re-renders in place, with no page reload — a reload
+// desyncs React's delegated click handlers from automation. This also sidesteps
+// the evictable MV3 service worker entirely (waiting on its target flakes).
+async function seedInPage(page, theme, contentPages) {
+  await page.evaluate(async (s, settings, ord, th, pages) => {
+    // Content first, so the sessions-triggered reload finds it in IndexedDB.
+    if (pages.length) {
+      await new Promise((resolve, reject) => {
+        const req = indexedDB.open("stash-content", 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains("pages")) db.createObjectStore("pages", { keyPath: "id" });
+        };
+        req.onsuccess = () => {
+          const db = req.result;
+          const tx = db.transaction("pages", "readwrite");
+          for (const r of pages) tx.objectStore("pages").put(r);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        };
+        req.onerror = () => reject(req.error);
+      });
     }
-  }
+    await chrome.storage.local.set({
+      "stash.sessions": s,
+      "stash.settings": { ...settings, theme: th },
+      "stash.session-order": ord,
+      "stash.meta": { version: 1 },
+    });
+  }, sessions, baseSettings, order, theme, contentPages);
 }
 
 // Clicks, waits for the target state, and re-clicks at a calm cadence if needed
@@ -215,46 +230,151 @@ async function ensureView(page, clickFn, checkFn, label) {
   throw new Error("timeout waiting for " + label);
 }
 
-async function capture({ theme, state, file }) {
-  await seedStorage(theme);
+async function capture({ theme, state, file, query }) {
+  // For "any tab, open or saved": open real tabs FIRST so the popup's "Open now"
+  // section has genuine live matches next to the stashed ones.
+  let extraPages = [];
+  if (state === "search-all") {
+    const urls = ["https://react.dev/reference/react/useState", "https://react.dev/blog"];
+    extraPages = await Promise.all(urls.map(async (u) => {
+      const pg = await browser.newPage();
+      try { await pg.goto(u, { waitUntil: "domcontentloaded", timeout: 12000 }); } catch {}
+      return pg;
+    }));
+    await sleep(1400);
+  }
+
   const page = await browser.newPage();
   page.on("pageerror", (e) => console.log("PAGEERR", file, e.message));
   await page.setViewport({ width: 400, height: 580, deviceScaleFactor: 2 });
   await page.evaluateOnNewDocument((th) => { try { localStorage.setItem("stash.theme", th); } catch {} }, theme);
   await page.goto(`chrome-extension://${extId}/popup.html`, { waitUntil: "networkidle0" });
-  await sleep(800); // let React mount + the initial reload() load sessions
+  await sleep(500); // let React mount
+  await seedInPage(page, theme, state === "search" ? seedPages : []);
 
-  if (state === "settings") {
+  if (state === "search") {
+    // Reload so the fresh mount deterministically reads the seeded content index
+    // AND sessions from storage — avoids racing the in-place onChanged reload,
+    // which can leave the content index empty when we type ("No tabs match").
+    // Search overlays the view, so we only type here (no nav clicks to desync).
+    await page.reload({ waitUntil: "networkidle0" });
+    await sleep(1400);
+    await page.waitForSelector('input[placeholder*="Search"]');
+    await page.type('input[placeholder*="Search"]', query || "github", { delay: 45 });
+    await sleep(1100);
+  } else if (state === "search-all") {
+    // Stay in the default Open Tabs view; the search overlays results from
+    // open tabs AND the stash, which is exactly the story for this shot.
+    await sleep(1000);
+    await page.waitForSelector('input[placeholder*="Search"]');
+    await page.type('input[placeholder*="Search"]', query || "react", { delay: 45 });
+    await sleep(1100);
+  } else if (state === "settings") {
+    await sleep(1000);
     await ensureView(page,
       () => [...document.querySelectorAll("button")].find((b) => /settings/i.test(b.getAttribute("aria-label") || ""))?.click(),
       () => /Appearance|Save target/.test(document.body.innerText),
       "settings panel");
     await sleep(900);
   } else {
+    await sleep(1000);
     await ensureView(page,
       () => [...document.querySelectorAll("button")].find((b) => /Stash/.test(b.textContent || ""))?.click(),
       () => document.querySelectorAll("[data-marquee-id]").length > 0,
       "library cards");
     await sleep(900);
-    if (state === "expanded") {
-      await page.evaluate(() => document.querySelector("[data-marquee-id] .cursor-pointer")?.click());
-      await sleep(900);
-    } else if (state === "search") {
-      await page.type('input[placeholder*="Search"]', "github", { delay: 45 });
-      await sleep(800);
-    }
   }
   // let favicons settle
   await page.evaluate(() => Promise.all(Array.from(document.images).map((i) => i.complete ? 0 : new Promise((r) => { i.onload = i.onerror = r; }))));
   await sleep(600);
   const img = await page.screenshot({ type: "png", encoding: "base64" });
   await page.close();
+  for (const p of extraPages) await p.close().catch(() => {});
   return img;
 }
 
-await warmFavicons(sessions.flatMap((s) => s.tabs.map((t) => t.url)));
+// ── Promo tiles (regenerated from the REAL app, not old mockups) ─────────────
+// Shared navy backdrop bits so the promos match the screenshot frames.
+const promoBg = `
+  .glow{position:absolute;inset:0;background:
+    radial-gradient(ellipse 50% 60% at 6% 0%, rgba(63,112,224,0.42) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 60% at 100% 100%, rgba(20,32,70,0.9) 0%, transparent 55%),
+    radial-gradient(ellipse 42% 46% at 80% 16%, rgba(99,140,240,0.22) 0%, transparent 60%);}
+  .grid{position:absolute;inset:0;opacity:.5;background-image:radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);background-size:30px 30px;-webkit-mask-image:linear-gradient(80deg,#000 35%,transparent 74%);}
+  .logo{border-radius:14px;background:linear-gradient(180deg,#FFFDF6,#F2E9CF);position:relative;overflow:hidden;flex-shrink:0;border:1px solid rgba(20,35,80,0.12);box-shadow:0 2px 6px rgba(0,0,0,.3)}
+  .logo::before{content:'';position:absolute;left:0;top:0;bottom:0;width:14%;background:#285CCC}
+  .logo span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:700;color:#1C336B;font-variation-settings:'opsz' 20}
+  .brandname{font-family:'Fraunces',serif;font-weight:600;color:#FFFDF6;font-variation-settings:'opsz' 30}`;
+const fontFaces = `
+  @font-face{font-family:'Fraunces';src:url(data:font/woff2;base64,${frauncesB64}) format('woff2');font-weight:100 900;}
+  @font-face{font-family:'Jakarta';src:url(data:font/woff2;base64,${jakartaB64}) format('woff2');font-weight:200 800;}`;
 
-for (const s of shots) {
+function marqueeFrame({ head, sub, imgB64 }) {
+  const headHtml = head.split("\n").map((l) => `<span>${l}</span>`).join("");
+  return `<!doctype html><html><head><meta charset="utf-8"><style>${fontFaces}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{width:1400px;height:560px;overflow:hidden;position:relative;font-family:'Jakarta',sans-serif;background:#0E1A38;}
+  ${promoBg}
+  .left{position:absolute;left:96px;top:0;bottom:0;width:660px;display:flex;flex-direction:column;justify-content:center;z-index:5}
+  .brand{display:flex;align-items:center;gap:15px;margin-bottom:30px}
+  .brand .logo{width:52px;height:52px}.brand .logo span{font-size:30px}
+  .brandname{font-size:34px}
+  h1{font-family:'Fraunces',Georgia,serif;color:#FFFDF6;font-weight:600;font-size:56px;line-height:1.05;letter-spacing:-.02em;font-variation-settings:'opsz' 56;margin-bottom:22px;display:flex;flex-direction:column}
+  .sub{color:#AFC0E6;font-size:21px;line-height:1.5;max-width:500px}
+  .device{position:absolute;right:104px;top:52px;z-index:4;width:406px;transform:rotate(-1deg);border-radius:22px 22px 0 0;overflow:hidden;border:1px solid rgba(150,180,255,0.22);border-bottom:0;box-shadow:0 40px 80px -20px rgba(0,0,0,.55),0 0 70px -8px rgba(80,134,242,0.30);}
+  .device img{display:block;width:100%}
+  </style></head><body>
+  <div class="glow"></div><div class="grid"></div>
+  <div class="left">
+    <div class="brand"><span class="logo"><span>S</span></span><span class="brandname">Stash</span></div>
+    <h1>${headHtml}</h1><p class="sub">${sub}</p>
+  </div>
+  <div class="device"><img src="data:image/png;base64,${imgB64}"/></div>
+  </body></html>`;
+}
+
+function smallFrame({ head, tag }) {
+  const headHtml = head.split("\n").map((l) => `<span>${l}</span>`).join("");
+  return `<!doctype html><html><head><meta charset="utf-8"><style>${fontFaces}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{width:440px;height:280px;overflow:hidden;position:relative;font-family:'Jakarta',sans-serif;background:#0E1A38;}
+  ${promoBg}
+  .wrap{position:absolute;inset:0;padding:30px 34px 28px;display:flex;flex-direction:column;justify-content:space-between;z-index:5}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand .logo{width:40px;height:40px}.brand .logo span{font-size:23px}
+  .brandname{font-size:27px}
+  h1{font-family:'Fraunces',Georgia,serif;color:#FFFDF6;font-weight:600;font-size:35px;line-height:1.08;letter-spacing:-.02em;font-variation-settings:'opsz' 35;display:flex;flex-direction:column}
+  .tag{color:#AFC0E6;font-size:14.5px;font-weight:600;letter-spacing:.01em}
+  </style></head><body>
+  <div class="glow"></div><div class="grid"></div>
+  <div class="wrap">
+    <div class="brand"><span class="logo"><span>S</span></span><span class="brandname">Stash</span></div>
+    <h1>${headHtml}</h1>
+    <div class="tag">${tag}</div>
+  </div>
+  </body></html>`;
+}
+
+async function renderHtml(html, { w, h, out }) {
+  const page = await browser.newPage();
+  await page.setViewport({ width: w, height: h, deviceScaleFactor: 1 });
+  await page.setContent(html, { waitUntil: "load" });
+  await page.evaluate(() => document.fonts.ready);
+  await new Promise((r) => setTimeout(r, 400));
+  await page.screenshot({ path: out, type: "jpeg", quality: 95 });
+  await page.close();
+}
+
+await warmFavicons([
+  ...sessions.flatMap((s) => s.tabs.map((t) => t.url)),
+  "https://react.dev/reference/react/useState", "https://react.dev/blog",
+]);
+
+// Optional arg renders a subset (e.g. `node render_store.mjs shot-4`, or `promo`).
+const only = process.argv[2];
+const shotsToRender = only ? shots.filter((s) => s.file.includes(only)) : shots;
+
+for (const s of shotsToRender) {
   const imgB64 = await capture(s);
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 800, deviceScaleFactor: 1 });
@@ -264,6 +384,23 @@ for (const s of shots) {
   await page.screenshot({ path: join(outDir, s.file), type: "jpeg", quality: 95 });
   await page.close();
   console.log("wrote", s.file);
+}
+
+if (!only || only.startsWith("promo")) {
+  // Marquee shows a real "search inside pages" popup — the strongest flex.
+  const marqueePopup = await capture({ theme: "light", state: "search", query: "cherry blossom", file: "_marquee" });
+  await renderHtml(marqueeFrame({
+    head: "Save your tabs.\nFind them by what's inside.",
+    sub: "A private tab manager that remembers the text on every page you save, so you can search for one later by a phrase you read.",
+    imgB64: marqueePopup,
+  }), { w: 1400, h: 560, out: join(outDir, "promo-marquee.jpg") });
+  console.log("wrote promo-marquee.jpg");
+
+  await renderHtml(smallFrame({
+    head: "Find any tab by\nwhat's inside it.",
+    tag: "Private, on-device tab manager",
+  }), { w: 440, h: 280, out: join(outDir, "promo-small.jpg") });
+  console.log("wrote promo-small.jpg");
 }
 
 await browser.close();

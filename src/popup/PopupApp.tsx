@@ -59,6 +59,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../com
 import { cn } from "../lib/utils";
 import { sendBackgroundRequest } from "../shared/messages";
 import { getSessions, getSessionOrder, getSettings } from "../shared/storage";
+import { getAllPageContent, type PageContent } from "../shared/content-store";
 import { applyTheme } from "../shared/theme";
 import { applySessionOrder, matchesSession, autoNameSession, formatSessionDate } from "../shared/session-utils";
 import type { SaveTarget, SessionSort, StashSession, StashTab } from "../shared/types";
@@ -101,6 +102,9 @@ export function PopupApp() {
   const [activeTab, setActiveTab] = useState<StashTab | null>(null);
   const [activeSession, setActiveSession] = useState<StashSession | null>(null);
   const [openTabs, setOpenTabs] = useState<chrome.tabs.Tab[]>([]);
+  // Captured page text, keyed by StashTab id, so search can match what was INSIDE
+  // a page. Loaded from IndexedDB and refreshed whenever the stash changes.
+  const [contentIndex, setContentIndex] = useState<Map<string, PageContent>>(new Map());
   const [isSessionTabDragging, setIsSessionTabDragging] = useState(false);
   const [isOpenTabDragging, setIsOpenTabDragging] = useState(false);
   const [newGroupProgress, setNewGroupProgress] = useState(0);
@@ -153,6 +157,22 @@ export function PopupApp() {
     const tabs = await chrome.tabs.query({ currentWindow: true });
     setOpenTabs(tabs.filter((t) => isSavableChromeTabUrl(t.url)));
   }, []);
+
+  const loadContent = useCallback(async () => {
+    try {
+      const all = await getAllPageContent();
+      setContentIndex(new Map(all.map((c) => [c.id, c])));
+    } catch {
+      // IndexedDB unavailable — search just falls back to title/URL matching.
+    }
+  }, []);
+
+  // Refresh the content index on mount and after every stash (sessions change).
+  // Capture runs async in the background, so a just-stashed page may take a beat
+  // to appear; reopening the popup or the next search picks it up.
+  useEffect(() => {
+    void loadContent();
+  }, [loadContent, sessions]);
 
   useEffect(() => {
     void loadOpenTabs();
@@ -251,17 +271,28 @@ export function PopupApp() {
 
   const stashMatches = useMemo(() => {
     if (!searching) return [];
-    const out: { session: StashSession; tab: StashTab }[] = [];
+    const out: { session: StashSession; tab: StashTab; snippet?: string }[] = [];
     for (const s of sessions) {
       if (s.deletedAt) continue;
       for (const tab of s.tabs) {
-        if (`${tab.title} ${tab.url}`.toLowerCase().includes(normalizedQuery)) {
-          out.push({ session: s, tab });
+        const inMeta = `${tab.title} ${tab.url}`.toLowerCase().includes(normalizedQuery);
+        // The magic: match the captured page text too, and show WHY it matched
+        // when the title and URL don't contain the term.
+        const content = contentIndex.get(tab.id);
+        const contentIdx = content ? content.text.toLowerCase().indexOf(normalizedQuery) : -1;
+        if (inMeta || contentIdx >= 0) {
+          out.push({
+            session: s,
+            tab,
+            snippet: !inMeta && contentIdx >= 0
+              ? makeSnippet(content!.text, contentIdx, normalizedQuery.length)
+              : undefined,
+          });
         }
       }
     }
     return out;
-  }, [sessions, searching, normalizedQuery]);
+  }, [sessions, searching, normalizedQuery, contentIndex]);
 
   // Drop selections that point at tabs which have since closed.
   useEffect(() => {
@@ -2015,7 +2046,7 @@ function GlobalSearchResults({
   openMatches, stashMatches, onActivateOpen, onOpenStashed, reduceMotion,
 }: {
   openMatches: chrome.tabs.Tab[];
-  stashMatches: { session: StashSession; tab: StashTab }[];
+  stashMatches: { session: StashSession; tab: StashTab; snippet?: string }[];
   onActivateOpen: (t: chrome.tabs.Tab) => void;
   onOpenStashed: (t: StashTab, sessionId: string) => void;
   reduceMotion: boolean;
@@ -2055,18 +2086,23 @@ function GlobalSearchResults({
         <section>
           <SearchSectionLabel label="In your stash" count={stashMatches.length} />
           <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
-            {stashMatches.map(({ session, tab }) => (
+            {stashMatches.map(({ session, tab, snippet }) => (
               <li
                 key={`${session.id}:${tab.id}`}
                 onClick={() => onOpenStashed(tab, session.id)}
-                className="group/row flex min-w-0 cursor-pointer select-none items-center gap-2.5 rounded-[10px] px-2.5 py-2 transition-colors hover:bg-surface-subtle"
+                className="group/row flex min-w-0 cursor-pointer select-none items-start gap-2.5 rounded-[10px] px-2.5 py-2 transition-colors hover:bg-surface-subtle"
               >
-                <Favicon tab={tab} />
+                <span className="mt-0.5"><Favicon tab={tab} /></span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[13.5px] font-medium text-ink">{tab.title}</span>
                   <span className="block truncate font-mono text-[11px] text-muted-2">{session.name}</span>
+                  {snippet && (
+                    <span className="mt-0.5 block overflow-hidden text-[11.5px] leading-snug text-muted [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+                      {snippet}
+                    </span>
+                  )}
                 </span>
-                <ExternalLink size={12} className="shrink-0 -translate-x-1 text-muted-2 opacity-0 transition-all duration-[var(--dur-fast)] group-hover/row:translate-x-0 group-hover/row:opacity-100" />
+                <ExternalLink size={12} className="mt-0.5 shrink-0 -translate-x-1 text-muted-2 opacity-0 transition-all duration-[var(--dur-fast)] group-hover/row:translate-x-0 group-hover/row:opacity-100" />
               </li>
             ))}
           </ul>
@@ -2864,4 +2900,14 @@ function AutoSaveSection({
 function formatUrl(url: string) {
   try { return new URL(url).hostname.replace(/^www\./, ""); }
   catch { return url; }
+}
+
+/** A short readable excerpt of captured page text centred on a match. */
+function makeSnippet(text: string, matchIndex: number, matchLen: number, radius = 64): string {
+  const start = Math.max(0, matchIndex - radius);
+  const end = Math.min(text.length, matchIndex + matchLen + radius);
+  let snippet = text.slice(start, end).replace(/\s+/g, " ").trim();
+  if (start > 0) snippet = `… ${snippet}`;
+  if (end < text.length) snippet = `${snippet} …`;
+  return snippet;
 }

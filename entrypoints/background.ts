@@ -30,6 +30,7 @@ import {
   isTabPinned,
 } from "../src/shared/session-utils";
 import type { BackgroundRequest, BackgroundResponse } from "../src/shared/messages";
+import { putPageContent, MAX_CONTENT_CHARS } from "../src/shared/content-store";
 
 const TRASH_PURGE_ALARM = "stash-trash-purge";
 const TRASH_PURGE_PERIOD_MINUTES = 6 * 60;
@@ -248,18 +249,19 @@ async function handleRequest(request: BackgroundRequest): Promise<BackgroundResp
         const order = await getSessionOrder();
         await setSessionOrder([session.id, ...order]);
         flashSavedBadge();
-        if (request.closeAfter) void closeTabsSafely(chromeTabs).catch(() => undefined);
+        captureThenMaybeClose(pairsFor(stashTabs, chromeTabs), chromeTabs, request.closeAfter);
         return { ok: true, session };
       }
       case "ADD_SELECTED_TABS_TO_SESSION": {
         const chromeTabs = await getSavableTabs(request.tabIds);
         if (chromeTabs.length === 0) throw new Error("None of the selected tabs can be stashed.");
+        const stashTabs = chromeTabs.map(createStashTab);
         let session: StashSession | undefined;
-        for (const chromeTab of chromeTabs) {
-          session = await addTabToSession(request.sessionId, createStashTab(chromeTab));
+        for (const stashTab of stashTabs) {
+          session = await addTabToSession(request.sessionId, stashTab);
         }
         flashSavedBadge();
-        if (request.closeAfter) void closeTabsSafely(chromeTabs).catch(() => undefined);
+        captureThenMaybeClose(pairsFor(stashTabs, chromeTabs), chromeTabs, request.closeAfter);
         return { ok: true, session };
       }
       case "CREATE_GROUP_FROM_OPEN_TAB": {
@@ -337,6 +339,44 @@ async function addCurrentTabToSession(tabId: number | undefined, sessionId: stri
 }
 
 // ── Capture ───────────────────────────────────────────────────────────────────
+// ── Page content capture (the "search inside the page" slice) ────────────────
+// Pull the visible text of each tab BEFORE it closes and store it keyed by the
+// StashTab id, so search can later match what was INSIDE a page, not just its
+// title or URL. Best-effort: restricted pages (chrome://, the web store, a
+// discarded tab) simply won't script, and we skip them without failing the stash.
+type CapturePair = { tabId?: number; stashId: string; url: string; title: string };
+
+async function captureContent(pairs: CapturePair[]): Promise<void> {
+  await Promise.all(
+    pairs.map(async ({ tabId, stashId, url, title }) => {
+      if (typeof tabId !== "number") return;
+      try {
+        const [injection] = await chrome.scripting.executeScript({
+          target: { tabId },
+          func: () => document.body?.innerText ?? "",
+        });
+        const text = typeof injection?.result === "string" ? injection.result.slice(0, MAX_CONTENT_CHARS) : "";
+        if (text.trim().length > 0) {
+          await putPageContent({ id: stashId, url, title, text, capturedAt: Date.now() });
+        }
+      } catch {
+        // Not scriptable (restricted scheme, discarded tab, etc.) — skip it.
+      }
+    }),
+  );
+}
+
+/** Pair a session's stored tabs with the live chrome tabs they came from (same order). */
+function pairsFor(stashTabs: StashSession["tabs"], chromeTabs: chrome.tabs.Tab[]): CapturePair[] {
+  return stashTabs.map((t, i) => ({ tabId: chromeTabs[i]?.id, stashId: t.id, url: t.url, title: t.title }));
+}
+
+/** Capture text for the just-stashed tabs, then (optionally) close them once capture is done. */
+function captureThenMaybeClose(pairs: CapturePair[], chromeTabs: chrome.tabs.Tab[], close: boolean) {
+  const done = captureContent(pairs);
+  if (close) void done.finally(() => void closeTabsSafely(chromeTabs).catch(() => undefined));
+}
+
 async function saveTabs(target: SaveTarget) {
   const tabs = await queryTabs(target === "all-windows" ? {} : { lastFocusedWindow: true });
   const tabsToSave = tabs.filter((tab) => isSavableChromeTab(tab) && !isTabPinned(tab));
@@ -350,10 +390,10 @@ async function saveTabs(target: SaveTarget) {
   const order = await getSessionOrder();
   await setSessionOrder([session.id, ...order]);
   flashSavedBadge();
-  // Close tabs as best-effort cleanup AFTER the save is safely stored: the popup
-  // gets its confirmation without waiting on the window to clear, and a close
-  // hiccup can never turn a successful save into an error.
-  void closeTabsSafely(tabsToSave).catch(() => undefined);
+  // Capture each page's text, THEN close (as best-effort cleanup) AFTER the save
+  // is safely stored: the popup gets its confirmation without waiting, and a
+  // capture/close hiccup can never turn a successful save into an error.
+  captureThenMaybeClose(pairsFor(session.tabs, tabsToSave), tabsToSave, true);
   return session;
 }
 
@@ -376,7 +416,7 @@ async function saveCurrentTab(tabId?: number) {
   const order = await getSessionOrder();
   await setSessionOrder([session.id, ...order]);
   flashSavedBadge();
-  void closeTabsSafely([tab]).catch(() => undefined);
+  captureThenMaybeClose(pairsFor(session.tabs, [tab]), [tab], true);
   return session;
 }
 

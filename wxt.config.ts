@@ -14,7 +14,8 @@ export default defineConfig({
       "Save your open tabs in one click to free up memory, then restore them any time. A fast, private tab manager that ends tab clutter.",
     version: "1.2.0",
     minimum_chrome_version: "116",
-    permissions: ["contextMenus", "storage", "unlimitedStorage", "tabs", "alarms", "favicon"],
+    permissions: ["contextMenus", "storage", "unlimitedStorage", "tabs", "alarms", "favicon", "scripting"],
+    host_permissions: ["<all_urls>"],
     action: {
       default_title: "Stash — save your tabs"
     },

@@ -30,7 +30,7 @@ import {
   isTabPinned,
 } from "../src/shared/session-utils";
 import type { BackgroundRequest, BackgroundResponse } from "../src/shared/messages";
-import { putPageContent, MAX_CONTENT_CHARS } from "../src/shared/content-store";
+import { putPageContent, MAX_CONTENT_CHARS, MAX_SNAPSHOT_CHARS } from "../src/shared/content-store";
 
 const TRASH_PURGE_ALARM = "stash-trash-purge";
 const TRASH_PURGE_PERIOD_MINUTES = 6 * 60;
@@ -353,17 +353,64 @@ async function captureContent(pairs: CapturePair[]): Promise<void> {
       try {
         const [injection] = await chrome.scripting.executeScript({
           target: { tabId },
-          func: () => document.body?.innerText ?? "",
+          func: extractReadable,
         });
-        const text = typeof injection?.result === "string" ? injection.result.slice(0, MAX_CONTENT_CHARS) : "";
+        const result = injection?.result as { text: string; html: string } | undefined;
+        const text = (result?.text ?? "").slice(0, MAX_CONTENT_CHARS);
+        const html = (result?.html ?? "").slice(0, MAX_SNAPSHOT_CHARS);
         if (text.trim().length > 0) {
-          await putPageContent({ id: stashId, url, title, text, capturedAt: Date.now() });
+          await putPageContent({ id: stashId, url, title, text, html: html || undefined, capturedAt: Date.now() });
         }
       } catch {
         // Not scriptable (restricted scheme, discarded tab, etc.) — skip it.
       }
     }),
   );
+}
+
+/**
+ * Runs IN the page (serialized by executeScript, so it must be fully
+ * self-contained). A Readability-style pass: find the main content, strip
+ * boilerplate and anything executable, and return clean text (for search) plus
+ * a sanitized HTML snapshot (the offline "saved copy"). Deliberately dependency
+ * free; @mozilla/readability can be swapped in later for higher fidelity.
+ */
+function extractReadable(): { text: string; html: string } {
+  try {
+    if (!document.body) return { text: "", html: "" };
+
+    // Search text = the WHOLE body for maximum recall (this is what lets you find
+    // a word buried in a comment or sidebar). innerText needs layout, so read live.
+    const text = (document.body.innerText || document.body.textContent || "")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+
+    // Snapshot HTML = just the main content, cleaned — a readable "saved copy".
+    const root =
+      document.querySelector("article") ||
+      document.querySelector("main") ||
+      document.querySelector('[role="main"]') ||
+      document.body;
+    const clone = root.cloneNode(true) as HTMLElement;
+    clone
+      .querySelectorAll(
+        "script,style,noscript,iframe,object,embed,svg,canvas,form,nav,header,footer,aside," +
+          '[role="navigation"],[role="banner"],[role="contentinfo"],[aria-hidden="true"]',
+      )
+      .forEach((el) => el.remove());
+    clone.querySelectorAll("*").forEach((el) => {
+      for (const attr of [...el.attributes]) {
+        const name = attr.name.toLowerCase();
+        // Drop event handlers and javascript: URLs so the snapshot is inert.
+        if (name.startsWith("on") || /^\s*javascript:/i.test(attr.value)) el.removeAttribute(attr.name);
+      }
+    });
+
+    return { text, html: clone.innerHTML };
+  } catch {
+    return { text: "", html: "" };
+  }
 }
 
 /** Pair a session's stored tabs with the live chrome tabs they came from (same order). */

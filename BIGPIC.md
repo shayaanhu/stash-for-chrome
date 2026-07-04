@@ -65,6 +65,10 @@ Fall in love with "it always caught the page and always hands it back instantly,
 - We're now in "private web memory" (near mymind/Heptabase). Our angle stays distinct: tab-flow-native, one click, local, beautiful, cheap.
 - Scope discipline. This dies if we build FTS5 + OPFS + 5GB + snapshots for two months and never feel the magic moment.
 
+## STATUS: thin slice VALIDATED (2026-07-04)
+
+Built and confirmed working. Searched "ancient egypt" and it surfaced a stashed Reddit thread whose title/URL contained neither term — the words were in a comment inside the page body — with the matching snippet shown. The moment lands. Content capture (document.body.innerText) runs on stash into IndexedDB; global search matches it and shows a snippet. Next: the real Spotlight layer (Readability for clean text + readable snapshot, "open saved copy" instant offline render, FlexSearch then SQLite FTS5).
+
 ## THE THIN SLICE (build this first)
 
 Smallest thing that produces the magic moment. NOT the 5GB Spotlight engine.

@@ -16,8 +16,10 @@ export type PageContent = {
   id: string;
   url: string;
   title: string;
-  /** Extracted visible text of the page (capped). */
+  /** Extracted visible text of the page (capped) — what search matches against. */
   text: string;
+  /** Cleaned readable HTML of the main content — the offline "saved copy". */
+  html?: string;
   capturedAt: number;
 };
 
@@ -27,6 +29,8 @@ const STORE = "pages";
 
 /** Cap stored text so a single monster page can't blow up the store. */
 export const MAX_CONTENT_CHARS = 200_000;
+/** Cap the readable HTML snapshot separately (markup is heavier than text). */
+export const MAX_SNAPSHOT_CHARS = 600_000;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -56,6 +60,16 @@ export async function putPageContent(content: PageContent): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const req = tx(db, "readwrite").put(content);
     req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** Load one captured page by its StashTab id (used by the reader). */
+export async function getPageContent(id: string): Promise<PageContent | undefined> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const req = tx(db, "readonly").get(id);
+    req.onsuccess = () => resolve((req.result as PageContent | undefined) ?? undefined);
     req.onerror = () => reject(req.error);
   });
 }

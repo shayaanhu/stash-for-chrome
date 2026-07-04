@@ -2,6 +2,7 @@ import NumberFlow from "@number-flow/react";
 import {
   ArrowUpDown,
   ArrowUpRight,
+  BookOpen,
   Check,
   ChevronDown,
   ChevronRight,
@@ -271,7 +272,7 @@ export function PopupApp() {
 
   const stashMatches = useMemo(() => {
     if (!searching) return [];
-    const out: { session: StashSession; tab: StashTab; snippet?: string }[] = [];
+    const out: { session: StashSession; tab: StashTab; snippet?: string; hasSnapshot: boolean }[] = [];
     for (const s of sessions) {
       if (s.deletedAt) continue;
       for (const tab of s.tabs) {
@@ -287,6 +288,7 @@ export function PopupApp() {
             snippet: !inMeta && contentIdx >= 0
               ? makeSnippet(content!.text, contentIdx, normalizedQuery.length)
               : undefined,
+            hasSnapshot: Boolean(content?.html),
           });
         }
       }
@@ -831,6 +833,13 @@ export function PopupApp() {
     await reload();
   }
 
+  // Open the offline saved copy (instant, from disk) in a reader tab. Unlike
+  // opening the live tab, this does NOT remove it from its group — it's just a read.
+  function openSavedCopy(stashTabId: string) {
+    void chrome.tabs.create({ url: chrome.runtime.getURL(`reader.html?id=${encodeURIComponent(stashTabId)}`) });
+    window.close();
+  }
+
   // A global-search hit for a tab that's already open just focuses it.
   async function handleActivateOpenTab(tab: chrome.tabs.Tab) {
     if (tab.id == null) return;
@@ -1113,6 +1122,7 @@ export function PopupApp() {
                       stashMatches={stashMatches}
                       onActivateOpen={(t) => void handleActivateOpenTab(t)}
                       onOpenStashed={(t, sid) => void handleRestoreTab(t, sid)}
+                      onOpenSaved={openSavedCopy}
                       reduceMotion={Boolean(reduceMotion)}
                     />
                   ) : topView === "open" ? (
@@ -2043,12 +2053,13 @@ const OpenTabSelectRow = memo(function OpenTabSelectRow({
 
 /* ── Global search results — spans open tabs and stashed groups ── */
 function GlobalSearchResults({
-  openMatches, stashMatches, onActivateOpen, onOpenStashed, reduceMotion,
+  openMatches, stashMatches, onActivateOpen, onOpenStashed, onOpenSaved, reduceMotion,
 }: {
   openMatches: chrome.tabs.Tab[];
-  stashMatches: { session: StashSession; tab: StashTab; snippet?: string }[];
+  stashMatches: { session: StashSession; tab: StashTab; snippet?: string; hasSnapshot: boolean }[];
   onActivateOpen: (t: chrome.tabs.Tab) => void;
   onOpenStashed: (t: StashTab, sessionId: string) => void;
+  onOpenSaved: (stashTabId: string) => void;
   reduceMotion: boolean;
 }) {
   const total = openMatches.length + stashMatches.length;
@@ -2086,7 +2097,7 @@ function GlobalSearchResults({
         <section>
           <SearchSectionLabel label="In your stash" count={stashMatches.length} />
           <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
-            {stashMatches.map(({ session, tab, snippet }) => (
+            {stashMatches.map(({ session, tab, snippet, hasSnapshot }) => (
               <li
                 key={`${session.id}:${tab.id}`}
                 onClick={() => onOpenStashed(tab, session.id)}
@@ -2102,6 +2113,17 @@ function GlobalSearchResults({
                     </span>
                   )}
                 </span>
+                {hasSnapshot && (
+                  <button
+                    type="button"
+                    title="Open the saved copy (offline, instant)"
+                    aria-label="Open saved copy"
+                    onClick={(e) => { e.stopPropagation(); onOpenSaved(tab.id); }}
+                    className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted-2 transition-colors duration-[var(--dur-fast)] hover:bg-accent/10 hover:text-accent-text"
+                  >
+                    <BookOpen size={13} />
+                  </button>
+                )}
                 <ExternalLink size={12} className="mt-0.5 shrink-0 -translate-x-1 text-muted-2 opacity-0 transition-all duration-[var(--dur-fast)] group-hover/row:translate-x-0 group-hover/row:opacity-100" />
               </li>
             ))}

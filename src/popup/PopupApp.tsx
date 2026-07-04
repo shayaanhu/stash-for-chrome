@@ -1,6 +1,7 @@
 import NumberFlow from "@number-flow/react";
 import {
   ArrowUpDown,
+  ArrowUpRight,
   Check,
   ChevronDown,
   ChevronRight,
@@ -82,7 +83,6 @@ export function PopupApp() {
   const [closeAfterStash, setCloseAfterStash] = useState(true);
   const [showStashSheet, setShowStashSheet] = useState(false);
   const [query, setQuery] = useState("");
-  const [openFilter, setOpenFilter] = useState("");
   const [topView, setTopView] = useState<TopView>("open");
   const [showTrash, setShowTrash] = useState(false);
   const [selectedTabIds, setSelectedTabIds] = useState<Set<number>>(new Set());
@@ -229,15 +229,39 @@ export function PopupApp() {
     return result;
   }, [sessions, sessionSort, query, showTrash]);
 
-  const filteredOpenTabs = useMemo(() => {
-    const q = openFilter.trim().toLowerCase();
-    if (!q) return openTabs;
+  // Selecting-to-stash always operates on the full open-tab list. Narrowing by a
+  // term now lives in global search (which spans open tabs AND stashed groups),
+  // so the Open Tabs list itself is never filtered.
+  const filteredOpenTabs = openTabs;
+
+  // ── Global search ────────────────────────────────────────────────────────────
+  // One search box, everywhere. Any text turns the stage into unified results:
+  // matching open tabs on top, matching stashed tabs (labelled by group) below.
+  const normalizedQuery = query.trim().toLowerCase();
+  const searching = normalizedQuery.length > 0;
+
+  const openMatches = useMemo(() => {
+    if (!searching) return [];
     return openTabs.filter(
       (t) =>
-        (t.title ?? "").toLowerCase().includes(q) ||
-        (t.url ?? "").toLowerCase().includes(q),
+        (t.title ?? "").toLowerCase().includes(normalizedQuery) ||
+        (t.url ?? "").toLowerCase().includes(normalizedQuery),
     );
-  }, [openTabs, openFilter]);
+  }, [openTabs, searching, normalizedQuery]);
+
+  const stashMatches = useMemo(() => {
+    if (!searching) return [];
+    const out: { session: StashSession; tab: StashTab }[] = [];
+    for (const s of sessions) {
+      if (s.deletedAt) continue;
+      for (const tab of s.tabs) {
+        if (`${tab.title} ${tab.url}`.toLowerCase().includes(normalizedQuery)) {
+          out.push({ session: s, tab });
+        }
+      }
+    }
+    return out;
+  }, [sessions, searching, normalizedQuery]);
 
   // Drop selections that point at tabs which have since closed.
   useEffect(() => {
@@ -736,13 +760,51 @@ export function PopupApp() {
     );
   }
 
-  async function handleRestoreTab(tab: StashTab) {
+  // Opening a tab out of a group pulls it out of that group (it's live in the
+  // browser now, so keeping a stashed copy is just clutter). Undo re-inserts it
+  // at its original spot — and un-trashes the group if that was its last tab.
+  async function handleRestoreTab(tab: StashTab, sessionId: string) {
     const response = await sendBackgroundRequest({ type: "RESTORE_TAB", url: tab.url });
     if (!response.ok) {
       toast.error(response.error);
       return;
     }
-    toast.success("Tab restored.");
+
+    const src = sessions.find((s) => s.id === sessionId);
+    const index = src ? src.tabs.findIndex((t) => t.id === tab.id) : -1;
+
+    // Optimistic: drop the tab now, trashing the group if it was the last one
+    // (mirrors handleRemoveTab so the card animates out immediately).
+    setSessions((prev) => prev.map((s) => {
+      if (s.id !== sessionId) return s;
+      const tabs = s.tabs.filter((t) => t.id !== tab.id);
+      return tabs.length === 0 && !s.deletedAt ? { ...s, tabs, deletedAt: Date.now() } : { ...s, tabs };
+    }));
+    if (src && src.tabs.length === 1) {
+      setExpandedIds((cur) => { const n = new Set(cur); n.delete(sessionId); return n; });
+    }
+
+    await sendBackgroundRequest({ type: "REMOVE_TAB", sessionId, tabId: tab.id });
+    await reload();
+
+    toast.success("Opened. Removed from the group.", {
+      action: {
+        label: "Undo",
+        onClick: () => void undoOpenedTab(sessionId, tab, index < 0 ? 0 : index),
+      },
+    });
+  }
+
+  async function undoOpenedTab(sessionId: string, tab: StashTab, index: number) {
+    await sendBackgroundRequest({ type: "ADD_TAB_TO_SESSION", sessionId, tab, index });
+    await reload();
+  }
+
+  // A global-search hit for a tab that's already open just focuses it.
+  async function handleActivateOpenTab(tab: chrome.tabs.Tab) {
+    if (tab.id == null) return;
+    await sendBackgroundRequest({ type: "ACTIVATE_TAB", tabId: tab.id, windowId: tab.windowId });
+    window.close();
   }
 
   async function handleDeleteSession(session: StashSession) {
@@ -902,7 +964,7 @@ export function PopupApp() {
     onRenameSubmit: (e?: FormEvent<HTMLFormElement>) => liveHandlersRef.current.onRenameSubmit(e),
     onRenameKeyDown: (e: KeyboardEvent<HTMLInputElement>) => liveHandlersRef.current.onRenameKeyDown(e),
     onRestoreAll: (s: StashSession) => liveHandlersRef.current.onRestoreAll(s),
-    onRestoreTab: (t: StashTab) => liveHandlersRef.current.onRestoreTab(t),
+    onRestoreTab: (t: StashTab, sid: string) => liveHandlersRef.current.onRestoreTab(t, sid),
     onDeleteSession: (s: StashSession) => liveHandlersRef.current.onDeleteSession(s),
     onDeleteForever: (s: StashSession) => liveHandlersRef.current.onDeleteForever(s),
     onRestoreDeleted: (id: string) => liveHandlersRef.current.onRestoreDeleted(id),
@@ -949,7 +1011,7 @@ export function PopupApp() {
           <div className="flex items-center gap-2">
             <ViewSwitch
               value={topView}
-              onChange={(v) => { setTopView(v); setShowSettings(false); }}
+              onChange={(v) => { setTopView(v); setQuery(""); setShowSettings(false); }}
               openCount={openTabs.length}
               stashCount={activeCount}
             />
@@ -979,12 +1041,23 @@ export function PopupApp() {
               <input
                 ref={searchRef}
                 type="text"
-                placeholder={topView === "open" ? "Filter open tabs" : "Search sessions, tabs, URLs"}
-                value={topView === "open" ? openFilter : query}
-                onChange={(e) => (topView === "open" ? setOpenFilter(e.target.value) : setQuery(e.target.value))}
+                placeholder="Search every tab, open and stashed"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Escape" && query) { e.preventDefault(); setQuery(""); } }}
                 className="min-w-0 flex-1 bg-transparent text-[14px] text-ink outline-none placeholder:text-muted-2"
                 style={{ fontFamily: "var(--font-body)" }}
               />
+              {query && (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  onClick={() => { setQuery(""); searchRef.current?.focus(); }}
+                  className="-mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted-2 transition-colors duration-[var(--dur-fast)] hover:bg-surface-subtle hover:text-ink"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </label>
           </div>
 
@@ -995,7 +1068,7 @@ export function PopupApp() {
           <div ref={scrollContainerRef} className={cn("stash-scroll min-h-0 flex-1 overflow-y-auto px-4 pt-1", isSessionTabDragging || isOpenTabDragging ? "pb-24" : "pb-20")}>
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
-                key={topView}
+                key={searching ? "search" : topView}
                 initial={reduceMotion ? false : { opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, transition: { duration: 0.06 } }}
@@ -1003,7 +1076,15 @@ export function PopupApp() {
                 className="flex min-h-full flex-col"
               >
                 <div className="flex flex-1 flex-col">
-                  {topView === "open" ? (
+                  {searching ? (
+                    <GlobalSearchResults
+                      openMatches={openMatches}
+                      stashMatches={stashMatches}
+                      onActivateOpen={(t) => void handleActivateOpenTab(t)}
+                      onOpenStashed={(t, sid) => void handleRestoreTab(t, sid)}
+                      reduceMotion={Boolean(reduceMotion)}
+                    />
+                  ) : topView === "open" ? (
                     <OpenTabsView
                       tabs={filteredOpenTabs}
                       selectedIds={selectedTabIds}
@@ -1012,10 +1093,8 @@ export function PopupApp() {
                       onToggleAll={toggleSelectAll}
                       allSelected={allFilteredSelected}
                       hasAnyTabs={openTabs.length > 0}
-                      isFiltering={openFilter.trim().length > 0}
+                      isFiltering={false}
                       reduceMotion={Boolean(reduceMotion)}
-                      onStashAll={() => void handleSaveTabs()}
-                      isStashing={isSaving}
                     />
                   ) : (
                     <>
@@ -1134,12 +1213,13 @@ export function PopupApp() {
 
         {/* ── Sticky Stash CTA (Open Tabs view) ──────────────── */}
         <AnimatePresence>
-          {topView === "open" && selectedTabIds.size > 0 && !showSettings && !showStashSheet && (
+          {topView === "open" && openTabs.length > 0 && !searching && !showSettings && !showStashSheet && (
             <StashFooter
               count={selectedTabIds.size}
               busy={isSaving}
               reduceMotion={Boolean(reduceMotion)}
               onStash={() => setShowStashSheet(true)}
+              onStashAll={() => void handleSaveTabs()}
             />
           )}
         </AnimatePresence>
@@ -1209,7 +1289,7 @@ const SessionList = memo(function SessionList({
   onRenameSubmit: (e?: FormEvent<HTMLFormElement>) => void | Promise<void>;
   onRenameKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void;
   onRestoreAll: (s: StashSession) => void | Promise<void>;
-  onRestoreTab: (t: StashTab) => void | Promise<void>;
+  onRestoreTab: (t: StashTab, sessionId: string) => void | Promise<void>;
   onDeleteSession: (s: StashSession) => void | Promise<void>;
   onDeleteForever: (s: StashSession) => void | Promise<void>;
   onRestoreDeleted: (id: string) => void | Promise<void>;
@@ -1293,7 +1373,7 @@ const SessionCard = memo(function SessionCard({
   onRenameSubmit: (e?: FormEvent<HTMLFormElement>) => void | Promise<void>;
   onRenameKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void;
   onRestoreAll: (s: StashSession) => void | Promise<void>;
-  onRestoreTab: (t: StashTab) => void | Promise<void>;
+  onRestoreTab: (t: StashTab, sessionId: string) => void | Promise<void>;
   onDeleteSession: (s: StashSession) => void | Promise<void>;
   onDeleteForever: (s: StashSession) => void | Promise<void>;
   onRestoreDeleted: (id: string) => void | Promise<void>;
@@ -1533,7 +1613,7 @@ function TabRow({
   tab: StashTab;
   sessionId: string;
   viewMode: ViewMode;
-  onRestoreTab: (t: StashTab) => void | Promise<void>;
+  onRestoreTab: (t: StashTab, sessionId: string) => void | Promise<void>;
   onRemoveTab: (sid: string, tid: string) => void | Promise<void>;
 }) {
   const draggable = viewMode === "library";
@@ -1556,7 +1636,7 @@ function TabRow({
       <button
         type="button"
         className="flex flex-1 min-w-0 items-center gap-2.5 px-2.5 py-1.5 text-left transition-transform duration-[var(--dur-fast)] ease-[var(--ease-std)] group-hover/row:translate-x-0.5 active:scale-[0.99]"
-        onClick={() => void onRestoreTab(tab)}
+        onClick={() => void onRestoreTab(tab, sessionId)}
       >
         <Favicon tab={tab} />
         <span className="min-w-0 flex-1">
@@ -1796,7 +1876,7 @@ function StashSubTabs({
 
 /* ── Open Tabs view: pick tabs to stash ────────────────────────── */
 function OpenTabsView({
-  tabs, selectedIds, onToggle, onMarqueeSelect, onToggleAll, allSelected, hasAnyTabs, isFiltering, reduceMotion, onStashAll, isStashing,
+  tabs, selectedIds, onToggle, onMarqueeSelect, onToggleAll, allSelected, hasAnyTabs, isFiltering, reduceMotion,
 }: {
   tabs: chrome.tabs.Tab[];
   selectedIds: Set<number>;
@@ -1807,8 +1887,6 @@ function OpenTabsView({
   hasAnyTabs: boolean;
   isFiltering: boolean;
   reduceMotion: boolean;
-  onStashAll: () => void;
-  isStashing: boolean;
 }) {
   // Marquee drag selects exactly the tabs under the rectangle (replace).
   const onMarquee = useCallback(
@@ -1849,22 +1927,9 @@ function OpenTabsView({
           <CheckBox checked={allSelected} />
           {allSelected ? "Deselect all" : "Select all"}
         </button>
-        {selectedIds.size > 0 ? (
-          <span className="font-mono text-[11px] text-muted-2">{selectedIds.size} selected</span>
-        ) : (
-          <motion.button
-            type="button"
-            onClick={onStashAll}
-            disabled={isStashing}
-            whileHover={{ y: -1 }}
-            whileTap={{ scale: 0.95, y: 0 }}
-            transition={{ type: "spring", stiffness: 480, damping: 26 }}
-            className="flex items-center gap-1.5 rounded-full bg-[image:linear-gradient(180deg,var(--color-accent-hi)_0%,var(--color-accent)_55%,var(--color-accent-lo)_100%)] px-3 py-1.5 font-body text-[12px] font-semibold text-white shadow-[var(--shadow-primary)] transition-[box-shadow,filter] duration-[var(--dur-fast)] hover:shadow-[var(--shadow-primary-hover)] disabled:opacity-60"
-          >
-            {isStashing ? <Loader2 size={11} className="animate-spin" /> : <PanelTopClose size={11} />}
-            Stash all
-          </motion.button>
-        )}
+        <span className="font-mono text-[11px] text-muted-2">
+          {selectedIds.size > 0 ? `${selectedIds.size} selected` : `${tabs.length} tabs`}
+        </span>
       </div>
 
       <MarqueeArea enabled onMarquee={onMarquee} className="flex-1 min-h-[340px] rounded-[var(--radius-card)] border border-border bg-surface p-1.5 shadow-[var(--shadow-sm)]">
@@ -1945,15 +2010,128 @@ const OpenTabSelectRow = memo(function OpenTabSelectRow({
   );
 });
 
+/* ── Global search results — spans open tabs and stashed groups ── */
+function GlobalSearchResults({
+  openMatches, stashMatches, onActivateOpen, onOpenStashed, reduceMotion,
+}: {
+  openMatches: chrome.tabs.Tab[];
+  stashMatches: { session: StashSession; tab: StashTab }[];
+  onActivateOpen: (t: chrome.tabs.Tab) => void;
+  onOpenStashed: (t: StashTab, sessionId: string) => void;
+  reduceMotion: boolean;
+}) {
+  const total = openMatches.length + stashMatches.length;
+
+  if (total === 0) {
+    return (
+      <motion.section
+        initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+        className="flex min-h-[360px] flex-col items-center justify-center px-8 text-center"
+      >
+        <p className="display-emphasis font-display text-[22px] leading-tight text-ink">No tabs match</p>
+        <p className="mt-2 max-w-[250px] text-[13px] leading-relaxed text-muted">
+          Nothing open or stashed fits that search. Try fewer letters.
+        </p>
+      </motion.section>
+    );
+  }
+
+  return (
+    <div className="flex min-h-full flex-1 flex-col gap-3 pb-1">
+      {openMatches.length > 0 && (
+        <section>
+          <SearchSectionLabel label="Open now" count={openMatches.length} />
+          <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
+            {openMatches.map((tab) => (
+              <OpenMatchRow key={tab.id} chromeTab={tab} onActivate={onActivateOpen} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {stashMatches.length > 0 && (
+        <section>
+          <SearchSectionLabel label="In your stash" count={stashMatches.length} />
+          <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
+            {stashMatches.map(({ session, tab }) => (
+              <li
+                key={`${session.id}:${tab.id}`}
+                onClick={() => onOpenStashed(tab, session.id)}
+                className="group/row flex min-w-0 cursor-pointer select-none items-center gap-2.5 rounded-[10px] px-2.5 py-2 transition-colors hover:bg-surface-subtle"
+              >
+                <Favicon tab={tab} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13.5px] font-medium text-ink">{tab.title}</span>
+                  <span className="block truncate font-mono text-[11px] text-muted-2">{session.name}</span>
+                </span>
+                <ExternalLink size={12} className="shrink-0 -translate-x-1 text-muted-2 opacity-0 transition-all duration-[var(--dur-fast)] group-hover/row:translate-x-0 group-hover/row:opacity-100" />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function SearchSectionLabel({ label, count }: { label: string; count: number }) {
+  return (
+    <div className="mb-1 flex items-center justify-between px-1">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">{label}</span>
+      <span className="font-mono text-[11px] text-muted-2">{count}</span>
+    </div>
+  );
+}
+
+const OpenMatchRow = memo(function OpenMatchRow({
+  chromeTab, onActivate,
+}: {
+  chromeTab: chrome.tabs.Tab;
+  onActivate: (t: chrome.tabs.Tab) => void;
+}) {
+  const stashTab = useMemo<StashTab>(
+    () => ({
+      id: `client-${chromeTab.id}`,
+      url: chromeTab.url ?? "",
+      title: chromeTab.title?.trim() || chromeTab.url || "Untitled",
+      favicon: chromeTab.favIconUrl ?? "",
+      capturedAt: Date.now(),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [chromeTab.id, chromeTab.url, chromeTab.title, chromeTab.favIconUrl],
+  );
+
+  return (
+    <li
+      onClick={() => onActivate(chromeTab)}
+      className="group/row flex min-w-0 cursor-pointer select-none items-center gap-2.5 rounded-[10px] px-2.5 py-2 transition-colors hover:bg-surface-subtle"
+    >
+      <Favicon tab={stashTab} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13.5px] font-medium text-ink">{stashTab.title}</span>
+        <span className="block truncate font-mono text-[11px] text-muted-2">{formatUrl(stashTab.url)}</span>
+      </span>
+      <ArrowUpRight size={12} className="shrink-0 -translate-x-1 text-muted-2 opacity-0 transition-all duration-[var(--dur-fast)] group-hover/row:translate-x-0 group-hover/row:opacity-100" />
+    </li>
+  );
+});
+
 /* ── Sticky footer CTA shown while tabs are selected ───────────── */
 function StashFooter({
-  count, busy, reduceMotion, onStash,
+  count, busy, reduceMotion, onStash, onStashAll,
 }: {
   count: number;
   busy: boolean;
   reduceMotion: boolean;
   onStash: () => void;
+  onStashAll: () => void;
 }) {
+  // Permanent CTA. With nothing selected it's the one-tap "clear my brain"
+  // action: stash every tab and close the window. Selecting tabs reverts it to
+  // the precise flow — pick a destination group via the stash sheet.
+  const hasSelection = count > 0;
   return (
     <motion.div
       data-keep-selection
@@ -1965,7 +2143,7 @@ function StashFooter({
     >
       <motion.button
         type="button"
-        onClick={onStash}
+        onClick={hasSelection ? onStash : onStashAll}
         disabled={busy}
         whileHover={busy ? undefined : { scale: 1.015 }}
         whileTap={busy ? undefined : { scale: 0.98 }}
@@ -1977,7 +2155,11 @@ function StashFooter({
         ) : (
           <PanelTopClose size={15} />
         )}
-        {busy ? "Stashing…" : `Stash ${count} ${count === 1 ? "tab" : "tabs"}`}
+        {busy
+          ? "Stashing…"
+          : hasSelection
+          ? `Stash ${count} ${count === 1 ? "tab" : "tabs"}`
+          : "Stash all tabs"}
       </motion.button>
     </motion.div>
   );

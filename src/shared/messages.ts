@@ -1,4 +1,4 @@
-import type { RestoreSummary, SaveTarget, StashSession, StashSettings } from "./types";
+import type { RestoreSummary, SaveTarget, StashSession, StashSettings, StashTab } from "./types";
 
 export type BackgroundRequest =
   | { type: "SAVE_TABS"; target: SaveTarget }
@@ -21,7 +21,9 @@ export type BackgroundRequest =
   | { type: "ADD_OPEN_TAB_TO_SESSION"; sessionId: string; tabId: number }
   | { type: "CREATE_GROUP_FROM_OPEN_TAB"; tabId: number; sessionId: string; sessionName: string; order: string[] }
   | { type: "STASH_SELECTED_TABS"; tabIds: number[]; name?: string; closeAfter: boolean }
-  | { type: "ADD_SELECTED_TABS_TO_SESSION"; sessionId: string; tabIds: number[]; closeAfter: boolean };
+  | { type: "ADD_SELECTED_TABS_TO_SESSION"; sessionId: string; tabIds: number[]; closeAfter: boolean }
+  | { type: "ADD_TAB_TO_SESSION"; sessionId: string; tab: StashTab; index: number }
+  | { type: "ACTIVATE_TAB"; tabId: number; windowId?: number };
 
 export type BackgroundResponse =
   | {

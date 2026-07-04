@@ -310,6 +310,29 @@ export function createGroupFromTab(
   return run;
 }
 
+/**
+ * Re-insert a tab into a group at a specific index — the undo path for opening a
+ * tab out of a group. Restores the tab's original position and un-trashes the
+ * group if pulling the tab had emptied it. Skips if the tab id is already present.
+ */
+export function insertTabIntoSession(
+  sessionId: string,
+  tab: StashTab,
+  index: number,
+): Promise<StashSession | undefined> {
+  return mutate((sessions) => {
+    const next = sessions.map((s) => {
+      if (s.id !== sessionId) return s;
+      if (s.tabs.some((t) => t.id === tab.id)) return s;
+      const tabs = [...s.tabs];
+      tabs.splice(Math.max(0, Math.min(index, tabs.length)), 0, tab);
+      const { deletedAt: _deletedAt, ...rest } = s; // the group is alive again
+      return { ...rest, tabs };
+    });
+    return { next, result: next.find((s) => s.id === sessionId) };
+  });
+}
+
 export function addTabToSession(sessionId: string, tab: StashTab): Promise<StashSession | undefined> {
   return mutate((sessions) => {
     const next = sessions.map((s) => {

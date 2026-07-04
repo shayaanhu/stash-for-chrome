@@ -11,6 +11,7 @@ import {
   getSessions,
   getSessionOrder,
   getSettings,
+  insertTabIntoSession,
   moveTab,
   purgeExpiredTrash,
   removeTabFromSession,
@@ -165,6 +166,11 @@ async function handleRequest(request: BackgroundRequest): Promise<BackgroundResp
       case "RESTORE_TAB":
         await createTab(request.url);
         return { ok: true };
+      case "ACTIVATE_TAB":
+        await activateTab(request.tabId, request.windowId);
+        return { ok: true };
+      case "ADD_TAB_TO_SESSION":
+        return { ok: true, session: await insertTabIntoSession(request.sessionId, request.tab, request.index) };
       case "RENAME_SESSION":
         return { ok: true, session: await updateSessionName(request.sessionId, request.name) };
       case "SOFT_DELETE_SESSION":
@@ -514,6 +520,19 @@ async function getSavableTabs(tabIds: number[]): Promise<chrome.tabs.Tab[]> {
   return resolved.filter(
     (tab): tab is chrome.tabs.Tab => tab !== null && isSavableChromeTab(tab),
   );
+}
+
+// Focus an already-open tab (used by global search). Runs here so it survives
+// the popup closing as focus moves to the target window.
+async function activateTab(tabId: number, windowId?: number): Promise<void> {
+  await new Promise<void>((resolve) => {
+    chrome.tabs.update(tabId, { active: true }, () => { void chrome.runtime.lastError; resolve(); });
+  });
+  if (typeof windowId === "number") {
+    await new Promise<void>((resolve) => {
+      chrome.windows.update(windowId, { focused: true }, () => { void chrome.runtime.lastError; resolve(); });
+    });
+  }
 }
 
 async function createTab(url: string): Promise<void> {

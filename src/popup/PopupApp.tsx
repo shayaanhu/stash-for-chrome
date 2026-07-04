@@ -60,7 +60,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../com
 import { cn } from "../lib/utils";
 import { sendBackgroundRequest } from "../shared/messages";
 import { getSessions, getSessionOrder, getSettings } from "../shared/storage";
-import { getAllPageContent, type PageContent } from "../shared/content-store";
+import { getSearchDocs } from "../shared/content-store";
+
+/** In-popup search doc: original text (for snippets) + a lowercased copy (for fast matching). */
+type ContentDoc = { text: string; lower: string; hasSnapshot: boolean };
 import { applyTheme } from "../shared/theme";
 import { applySessionOrder, matchesSession, autoNameSession, formatSessionDate } from "../shared/session-utils";
 import type { SaveTarget, SessionSort, StashSession, StashTab } from "../shared/types";
@@ -103,9 +106,10 @@ export function PopupApp() {
   const [activeTab, setActiveTab] = useState<StashTab | null>(null);
   const [activeSession, setActiveSession] = useState<StashSession | null>(null);
   const [openTabs, setOpenTabs] = useState<chrome.tabs.Tab[]>([]);
-  // Captured page text, keyed by StashTab id, so search can match what was INSIDE
-  // a page. Loaded from IndexedDB and refreshed whenever the stash changes.
-  const [contentIndex, setContentIndex] = useState<Map<string, PageContent>>(new Map());
+  // Captured page text (search-only projection), keyed by StashTab id, so search
+  // can match what was INSIDE a page. The heavy HTML snapshot is NOT loaded here;
+  // the reader fetches it lazily. Refreshed whenever the stash changes.
+  const [contentIndex, setContentIndex] = useState<Map<string, ContentDoc>>(new Map());
   const [isSessionTabDragging, setIsSessionTabDragging] = useState(false);
   const [isOpenTabDragging, setIsOpenTabDragging] = useState(false);
   const [newGroupProgress, setNewGroupProgress] = useState(0);
@@ -161,8 +165,10 @@ export function PopupApp() {
 
   const loadContent = useCallback(async () => {
     try {
-      const all = await getAllPageContent();
-      setContentIndex(new Map(all.map((c) => [c.id, c])));
+      const docs = await getSearchDocs();
+      setContentIndex(
+        new Map(docs.map((d) => [d.id, { text: d.text, lower: d.text.toLowerCase(), hasSnapshot: d.hasSnapshot }])),
+      );
     } catch {
       // IndexedDB unavailable — search just falls back to title/URL matching.
     }
@@ -260,41 +266,63 @@ export function PopupApp() {
   // matching open tabs on top, matching stashed tabs (labelled by group) below.
   const normalizedQuery = query.trim().toLowerCase();
   const searching = normalizedQuery.length > 0;
+  // Multi-term: split into words and require EVERY word to appear (order- and
+  // whitespace-independent) rather than one rigid contiguous substring.
+  const terms = useMemo(() => normalizedQuery.split(/\s+/).filter(Boolean), [normalizedQuery]);
 
   const openMatches = useMemo(() => {
     if (!searching) return [];
-    return openTabs.filter(
-      (t) =>
-        (t.title ?? "").toLowerCase().includes(normalizedQuery) ||
-        (t.url ?? "").toLowerCase().includes(normalizedQuery),
-    );
-  }, [openTabs, searching, normalizedQuery]);
+    return openTabs.filter((t) => {
+      const hay = `${t.title ?? ""} ${t.url ?? ""}`.toLowerCase();
+      return terms.every((term) => hay.includes(term));
+    });
+  }, [openTabs, searching, terms]);
 
   const stashMatches = useMemo(() => {
     if (!searching) return [];
-    const out: { session: StashSession; tab: StashTab; snippet?: string; hasSnapshot: boolean }[] = [];
+    const out: { session: StashSession; tab: StashTab; snippet?: string; hasSnapshot: boolean; score: number }[] = [];
     for (const s of sessions) {
       if (s.deletedAt) continue;
       for (const tab of s.tabs) {
-        const inMeta = `${tab.title} ${tab.url}`.toLowerCase().includes(normalizedQuery);
-        // The magic: match the captured page text too, and show WHY it matched
-        // when the title and URL don't contain the term.
-        const content = contentIndex.get(tab.id);
-        const contentIdx = content ? content.text.toLowerCase().indexOf(normalizedQuery) : -1;
-        if (inMeta || contentIdx >= 0) {
-          out.push({
-            session: s,
-            tab,
-            snippet: !inMeta && contentIdx >= 0
-              ? makeSnippet(content!.text, contentIdx, normalizedQuery.length)
-              : undefined,
-            hasSnapshot: Boolean(content?.html),
-          });
+        const meta = `${tab.title} ${tab.url}`.toLowerCase();
+        const doc = contentIndex.get(tab.id);
+        const body = doc?.lower;
+
+        // A hit requires every term to appear somewhere (title/URL or the page
+        // body). Track body hits so we can rank and build a snippet.
+        let matched = true;
+        let bodyHits = 0;
+        let firstBodyIdx = -1;
+        let firstBodyLen = 0;
+        let allInMeta = true;
+        for (const term of terms) {
+          const inMeta = meta.includes(term);
+          const idx = body ? body.indexOf(term) : -1;
+          if (!inMeta && idx < 0) { matched = false; break; }
+          if (!inMeta) allInMeta = false;
+          if (idx >= 0) {
+            bodyHits++;
+            if (firstBodyIdx < 0 || idx < firstBodyIdx) { firstBodyIdx = idx; firstBodyLen = term.length; }
+          }
         }
+        if (!matched) continue;
+
+        out.push({
+          session: s,
+          tab,
+          // Show WHY it matched only when the title/URL didn't already explain it.
+          snippet: !allInMeta && firstBodyIdx >= 0 && doc
+            ? makeSnippet(doc.text, firstBodyIdx, firstBodyLen)
+            : undefined,
+          hasSnapshot: Boolean(doc?.hasSnapshot),
+          score: bodyHits,
+        });
       }
     }
+    // Rank: pages where more of the query lives in the body first, then newest.
+    out.sort((a, b) => b.score - a.score || b.tab.capturedAt - a.tab.capturedAt);
     return out;
-  }, [sessions, searching, normalizedQuery, contentIndex]);
+  }, [sessions, searching, terms, contentIndex]);
 
   // Drop selections that point at tabs which have since closed.
   useEffect(() => {

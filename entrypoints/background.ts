@@ -30,7 +30,13 @@ import {
   isTabPinned,
 } from "../src/shared/session-utils";
 import type { BackgroundRequest, BackgroundResponse } from "../src/shared/messages";
-import { putPageContent, MAX_CONTENT_CHARS, MAX_SNAPSHOT_CHARS } from "../src/shared/content-store";
+import {
+  putPageContent,
+  deletePageContent,
+  getAllContentIds,
+  MAX_CONTENT_CHARS,
+  MAX_SNAPSHOT_CHARS,
+} from "../src/shared/content-store";
 
 const TRASH_PURGE_ALARM = "stash-trash-purge";
 const TRASH_PURGE_PERIOD_MINUTES = 6 * 60;
@@ -58,6 +64,7 @@ export default defineBackground(() => {
 
     void ensureMeta();
     chrome.alarms.create(TRASH_PURGE_ALARM, { periodInMinutes: TRASH_PURGE_PERIOD_MINUTES });
+    void reconcileContent();
 
     const settings = await getSettings();
     await syncAutoSaveAlarm(settings.autoSave);
@@ -69,12 +76,13 @@ export default defineBackground(() => {
 
   chrome.runtime.onStartup.addListener(async () => {
     void purgeExpiredTrash();
+    void reconcileContent();
     const settings = await getSettings();
     await syncAutoSaveAlarm(settings.autoSave);
   });
 
   chrome.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === TRASH_PURGE_ALARM) void purgeExpiredTrash();
+    if (alarm.name === TRASH_PURGE_ALARM) { void purgeExpiredTrash(); void reconcileContent(); }
     if (alarm.name === AUTO_SAVE_ALARM) void runAutoSave();
   });
 
@@ -178,11 +186,19 @@ async function handleRequest(request: BackgroundRequest): Promise<BackgroundResp
         return { ok: true, session: await softDeleteSession(request.sessionId) };
       case "RESTORE_DELETED_SESSION":
         return { ok: true, session: await restoreDeletedSession(request.sessionId) };
-      case "DELETE_FOREVER":
-        return { ok: true, session: await deleteSessionForever(request.sessionId) };
-      case "EMPTY_TRASH":
-        return { ok: true, sessions: await emptyTrash() };
+      case "DELETE_FOREVER": {
+        const removed = await deleteSessionForever(request.sessionId);
+        if (removed) void deletePageContent(removed.tabs.map((t) => t.id));
+        return { ok: true, session: removed };
+      }
+      case "EMPTY_TRASH": {
+        const removed = await emptyTrash();
+        void deletePageContent(removed.flatMap((s) => s.tabs.map((t) => t.id)));
+        return { ok: true, sessions: removed };
+      }
       case "REMOVE_TAB":
+        // Content is left for the reconcile sweep to reclaim, so Undo (which
+        // re-adds the same tab id) keeps the page body searchable.
         return { ok: true, session: await removeTabFromSession(request.sessionId, request.tabId) };
       case "MOVE_TAB": {
         const { to } = await moveTab(request.fromSessionId, request.toSessionId, request.tabId);
@@ -410,6 +426,23 @@ function extractReadable(): { text: string; html: string } {
     return { text, html: clone.innerHTML };
   } catch {
     return { text: "", html: "" };
+  }
+}
+
+/**
+ * Sweep away captured content whose tab no longer exists in any session — the
+ * privacy + storage safety net. Runs on startup / install / purge, and catches
+ * every removal path (delete, empty trash, expired purge, dedup) in one place.
+ * getSessions() already excludes expired trash, so their content is reclaimed too.
+ */
+async function reconcileContent(): Promise<void> {
+  try {
+    const [sessions, ids] = await Promise.all([getSessions(), getAllContentIds()]);
+    const live = new Set(sessions.flatMap((s) => s.tabs.map((t) => t.id)));
+    const orphans = ids.filter((id) => !live.has(id));
+    if (orphans.length > 0) await deletePageContent(orphans);
+  } catch {
+    // Best-effort; a failed sweep just retries next time.
   }
 }
 

@@ -74,12 +74,50 @@ export async function getPageContent(id: string): Promise<PageContent | undefine
   });
 }
 
-/** Load every captured page. The popup holds this in memory for instant search. */
+/** Lean projection the popup searches over — text only, no heavy HTML snapshot. */
+export type SearchDoc = { id: string; text: string; hasSnapshot: boolean };
+
+/**
+ * Load the search index: id + text + a has-snapshot flag for every captured
+ * page. Uses a cursor and copies only these fields so the (potentially huge)
+ * HTML snapshots are read transiently and never retained in the popup — the
+ * snapshot itself is fetched lazily by the reader via getPageContent().
+ */
+export async function getSearchDocs(): Promise<SearchDoc[]> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const docs: SearchDoc[] = [];
+    const req = tx(db, "readonly").openCursor();
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (!cursor) {
+        resolve(docs);
+        return;
+      }
+      const value = cursor.value as PageContent;
+      docs.push({ id: value.id, text: value.text, hasSnapshot: Boolean(value.html) });
+      cursor.continue();
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** Load every captured page in full (includes HTML). Prefer getSearchDocs for search. */
 export async function getAllPageContent(): Promise<PageContent[]> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const req = tx(db, "readonly").getAll();
     req.onsuccess = () => resolve((req.result as PageContent[]) ?? []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** All stored content ids (keys only — cheap). Used to reconcile orphans. */
+export async function getAllContentIds(): Promise<string[]> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const req = tx(db, "readonly").getAllKeys();
+    req.onsuccess = () => resolve((req.result as string[]) ?? []);
     req.onerror = () => reject(req.error);
   });
 }

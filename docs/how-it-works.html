@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>How Stash works</title>
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <meta name="description" content="How Stash works: save your open tabs, get them back, and search inside the pages you saved. Everything stays on your device." />
+  <link rel="canonical" href="https://stashyourtabs.com/how-it-works" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #F4F0E4;
+      --surface: #FFFEFA;
+      --ink:     #1C336B;
+      --muted:   #4A5E92;
+      --border:  #E5DDC4;
+      --accent:  #2A55B1;
+    }
+
+    html { background: var(--bg); color: var(--ink); font-size: 16px; }
+
+    body {
+      font-family: "Georgia", serif;
+      line-height: 1.75;
+      padding: 3rem 1.5rem 6rem;
+    }
+
+    .wrap {
+      max-width: 680px;
+      margin: 0 auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 3rem 3.5rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 2.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      background: #F6EBCF;
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      position: relative; overflow: hidden; flex-shrink: 0;
+    }
+    .logo::before {
+      content: ""; position: absolute;
+      left: 0; top: 0; bottom: 0; width: 4px; background: #2A55B1;
+    }
+    .logo-letter {
+      font-family: "Georgia", serif;
+      font-size: 20px; font-weight: bold; color: #1D3261; margin-left: 3px;
+    }
+    .brand-name {
+      font-family: "Georgia", serif;
+      font-size: 1.25rem; font-weight: bold; color: var(--ink);
+    }
+
+    h1 {
+      font-size: 1.85rem; font-weight: bold; line-height: 1.2;
+      margin-bottom: 0.5rem; color: var(--ink);
+    }
+    .lede { font-size: 1rem; color: var(--muted); margin-bottom: 2rem; }
+
+    .tldr {
+      background: #EBE8DD; border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 2.5rem;
+    }
+    .tldr strong {
+      display: block; color: var(--ink);
+      font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.08em;
+      margin-bottom: 0.6rem;
+    }
+    .tldr ul { margin: 0 0 0 1.1rem; }
+    .tldr li { margin-bottom: 0.4rem; font-size: 0.9375rem; color: var(--muted); }
+    .tldr li:last-child { margin-bottom: 0; }
+
+    h2 {
+      font-size: 1.1rem; font-weight: bold; color: var(--ink);
+      margin-top: 2.5rem; margin-bottom: 0.75rem;
+      padding-bottom: 0.4rem; border-bottom: 1px solid var(--border);
+    }
+
+    p { margin-bottom: 1rem; font-size: 0.9375rem; color: var(--muted); }
+    p:last-child { margin-bottom: 0; }
+    p strong, li strong { color: var(--ink); }
+
+    ul { margin: 0.5rem 0 1rem 1.25rem; font-size: 0.9375rem; color: var(--muted); }
+    li { margin-bottom: 0.5rem; }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .cta {
+      display: inline-flex; align-items: center; gap: 8px;
+      margin-top: 1rem;
+      padding: 12px 24px; border-radius: 999px;
+      background: linear-gradient(180deg, #2A4A8C 0%, var(--ink) 55%, #16264F 100%);
+      color: #FFF2BD; font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+      font-size: 15px; font-weight: 700; text-decoration: none;
+    }
+    .cta:hover { text-decoration: none; filter: brightness(1.07); }
+
+    .note {
+      background: #EBE8DD; border: 1px solid var(--border);
+      border-radius: 10px; padding: 1rem 1.25rem; margin: 1rem 0;
+      font-size: 0.9375rem; color: var(--muted);
+    }
+
+    footer {
+      margin-top: 3rem; padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8125rem; color: var(--muted); text-align: center;
+    }
+
+    @media (max-width: 640px) {
+      .wrap { padding: 1.75rem 1.25rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <div class="brand">
+      <div class="logo"><span class="logo-letter">S</span></div>
+      <span class="brand-name">Stash</span>
+    </div>
+
+    <h1>How Stash works</h1>
+    <p class="lede">
+      Stash saves your open tabs so you can close them without losing them, and later
+      find any of them again. Here is what it does, in plain terms, including the parts
+      that do not work so you know what to expect.
+    </p>
+
+    <div class="tldr">
+      <strong>TL;DR</strong>
+      <ul>
+        <li>Save every open tab in one click, then close them without losing anything.</li>
+        <li>Bring a whole group back, or open one tab at a time.</li>
+        <li>One search covers your open tabs and your saved tabs together.</li>
+        <li>Stash also remembers the text inside each page you save, so you can find it by
+            a phrase you read, not just its title.</li>
+        <li>Open a saved copy of any page from your device, even offline.</li>
+        <li>Everything stays on your computer. No account, no server, nothing uploaded.</li>
+      </ul>
+    </div>
+
+    <h2>Saving your tabs</h2>
+    <p>
+      Click the Stash button and it puts every open tab in the window into one saved
+      group, then closes those tabs. Your browser goes quiet and your memory is freed,
+      but nothing is lost. You can also press <strong>Ctrl + Shift + S</strong>
+      (<strong>Cmd + Shift + S</strong> on a Mac), or right-click a page to save just
+      that one tab.
+    </p>
+    <p>
+      Each group gets a name based on the sites and the time it was saved. You can
+      rename it to anything you like.
+    </p>
+
+    <h2>Getting tabs back</h2>
+    <p>
+      Open a group to see the pages inside it. You can bring the whole group back at
+      once, or click a single tab to open just that one. When you open a single tab out
+      of a group, Stash removes it from that group, since it is open in your browser
+      again. If that was not what you wanted, there is an undo button on the message
+      that appears.
+    </p>
+
+    <h2>Searching everything at once</h2>
+    <p>
+      The search box looks in two places at the same time: the tabs you have open right
+      now, and everything you have saved. Type a word and you get both, split into
+      "open now" and "in your stash", so you can jump to any tab without hunting through
+      windows.
+    </p>
+
+    <h2>Searching inside the pages you saved</h2>
+    <p>
+      This is the part most tab tools do not do. When you save a tab, Stash also
+      remembers the <strong>text that was on the page</strong>, not just its title and
+      address. So weeks later you can search for a phrase you remember reading, and
+      Stash will find the page even if those words were never in the title. The result
+      shows a short snippet of the matching text so you can see why it came up.
+    </p>
+
+    <h2>Opening a saved copy, even offline</h2>
+    <p>
+      Along with the text, Stash keeps a clean, readable copy of the page's main
+      content. On a search result you will see a small book icon. Click it and the
+      saved copy opens straight from your device. It loads instantly, works with no
+      internet, and still works even if the real page later changes or goes away.
+    </p>
+    <div class="note">
+      The saved copy is a readable snapshot, not a perfect photo of the page. It keeps
+      the text and images from the main article. It does not keep videos, logins, or
+      anything interactive.
+    </div>
+
+    <h2>What Stash can and cannot read</h2>
+    <p>
+      Reading page text works on most normal websites. It does not work on browser
+      pages (like Chrome's own settings pages or the Chrome Web Store), on PDF files,
+      or on some sites that block scripts. When a page cannot be read, Stash still
+      saves it as a normal link. You just will not be able to search inside that one.
+    </p>
+    <p>
+      Search inside pages only applies to tabs you save from now on. Tabs you saved
+      before this feature existed are still there as links, but they have no saved text.
+    </p>
+
+    <h2>Your privacy</h2>
+    <p>
+      Everything Stash saves stays on your own computer. That includes the page text
+      and the saved copies. There is <strong>no account, no sign-in, and no server</strong>.
+      Nothing is uploaded, nothing is sold, and no other company is involved. Stash only
+      reads a page's text at the moment you choose to save that tab. It never reads pages
+      in the background.
+    </p>
+    <p>
+      When you delete a group or empty the trash, its saved text and saved copies are
+      deleted too. Uninstalling Stash removes all of it. For the full details, read the
+      <a href="/privacy">privacy policy</a>.
+    </p>
+
+    <h2>A few good habits</h2>
+    <ul>
+      <li><strong>Pin the button.</strong> Keep Stash one click away in your toolbar.</li>
+      <li><strong>Export a backup.</strong> Settings lets you save all your groups to a
+          file, so you always have a copy.</li>
+      <li><strong>Search with a phrase.</strong> If you half-remember an article, type a
+          few words you know were in it. That is what search inside pages is for.</li>
+    </ul>
+
+    <p style="text-align:center;">
+      <a class="cta" href="https://chromewebstore.google.com/detail/stash/cgcdmjjemodohoffmgfdkgnlbcmfcbmd" target="_blank" rel="noopener">
+        Add Stash to Chrome
+      </a>
+    </p>
+
+    <footer>
+      &copy; 2026 Shayaan Qazi &nbsp;&middot;&nbsp;
+      <a href="/">Home</a> &nbsp;&middot;&nbsp;
+      <a href="/privacy">Privacy</a>
+    </footer>
+
+  </div>
+</body>
+</html>

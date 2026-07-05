@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Privacy Policy — Stash</title>
+  <title>Stash Privacy Policy</title>
   <link rel="icon" type="image/png" href="favicon.png" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -34,7 +34,6 @@
       padding: 3rem 3.5rem;
     }
 
-    /* Brand header */
     .brand {
       display: flex;
       align-items: center;
@@ -95,7 +94,6 @@
       margin-bottom: 2.5rem;
     }
 
-    /* Summary box */
     .summary {
       background: #EBE8DD;
       border: 1px solid var(--border);
@@ -189,80 +187,90 @@
     </div>
 
     <h1>Privacy Policy</h1>
-    <p class="meta">Effective date: 1 June 2026 &nbsp;·&nbsp; Applies to: Stash Chrome Extension, v1.0 and later</p>
+    <p class="meta">Effective date: 5 July 2026. Applies to Stash for Chrome, version 1.3 and later.</p>
 
     <div class="summary">
-      <strong>Plain-English summary</strong>
-      Stash stores your tab data on your own device only. Nothing is sent to any
-      server. There are no accounts, no analytics, and no third-party services
-      involved. You can export or delete everything at any time.
+      <strong>The short version</strong>
+      Everything Stash saves stays on your own computer. That now includes the text
+      of the pages you save, so you can search inside them later. Nothing is sent to
+      a server. There are no accounts, no analytics, and no other companies involved.
+      You can delete any of it at any time, and deleting a saved group deletes its
+      page text too.
     </div>
 
-    <h2>1. Who we are</h2>
+    <h2>1. Who runs Stash</h2>
     <p>
-      Stash is a Chrome extension developed and maintained by
-      Shayaan Qazi ("we", "us", "our"). You can reach us at
-      <a href="mailto:2014shanoo@gmail.com">2014shanoo@gmail.com</a>.
+      Stash is a Chrome extension made by Shayaan Qazi ("we", "us"). You can reach us
+      at <a href="mailto:2014shanoo@gmail.com">2014shanoo@gmail.com</a>.
     </p>
 
-    <h2>2. What data Stash processes</h2>
-    <p>When you explicitly choose to save a session, Stash captures and stores locally:</p>
+    <h2>2. What Stash saves</h2>
+    <p>Stash only saves a tab when you ask it to, by clicking Stash, using the keyboard
+       shortcut, or picking a Stash item from the right-click menu. When you do, it stores
+       these things on your device:</p>
     <ul>
-      <li><strong>Tab URLs</strong> — the web address of each tab you save.</li>
-      <li><strong>Tab titles</strong> — the page title as shown in the browser tab.</li>
-      <li><strong>Favicons</strong> — the small site icon displayed in the browser tab. Oversized or embedded (data-URI) favicons are discarded automatically; only small URL-referenced icons are kept.</li>
-      <li><strong>A session name</strong> — auto-generated from the date and first tab title, editable by you at any time.</li>
-      <li><strong>Timestamps</strong> — when each session was created and when each tab was captured.</li>
+      <li>The web address (URL) of each tab.</li>
+      <li>The page title and the small site icon (favicon).</li>
+      <li>A name for the group, made from the site and the time, which you can rename.</li>
+      <li>The time each tab was saved.</li>
+      <li>The readable text of the page, so you can later find the page by words that
+          were inside it, not just its title.</li>
+      <li>A cleaned-up copy of the page's main content, so you can open a saved copy of
+          the page from your device, even offline.</li>
     </ul>
     <p>
-      Stash does <strong>not</strong> capture passwords, form data, page content,
-      cookies, location, or any information beyond the URL, title, and icon
-      of each tab you choose to save.
+      Stash does not save your passwords, anything you typed into forms, your cookies,
+      or your location. It only reads a page's text at the moment you choose to save
+      that tab. It never reads pages in the background or pages you did not save.
     </p>
 
-    <h2>3. How data is stored</h2>
+    <h2>3. Where it is stored</h2>
     <p>
-      All data is written exclusively to
-      <a href="https://developer.chrome.com/docs/extensions/reference/api/storage" target="_blank" rel="noopener">
-        <code>chrome.storage.local</code></a>
-      — Chrome's on-device extension storage. This data lives on your machine.
-      It is never transmitted to any server, shared with any third party,
-      or uploaded anywhere.
+      Group names, tab lists, and settings are kept in Chrome's on-device storage
+      (<a href="https://developer.chrome.com/docs/extensions/reference/api/storage" target="_blank" rel="noopener"><code>chrome.storage.local</code></a>).
+      The page text and saved copies are kept in your browser's local database
+      (IndexedDB). Both live on your computer. None of it is uploaded, shared, or
+      sent anywhere.
     </p>
     <p>
-      Stash requests the <code>unlimitedStorage</code> permission so that
-      heavy users (many sessions, many tabs) are not silently blocked by
-      Chrome's default 10 MB cap. This does not change where the data is
-      stored — it is still local only.
+      Stash asks for the <code>unlimitedStorage</code> permission so that saving many
+      pages does not hit Chrome's small default storage limit. This does not change
+      where the data lives. It stays on your device.
     </p>
 
-    <h2>4. Why we collect it (purpose and legal basis)</h2>
+    <h2>4. Why Stash reads page text</h2>
     <p>
-      The sole purpose of capturing tab URLs and titles is to fulfil the
-      core feature you explicitly requested: saving and later restoring
-      your browser sessions. No data is used for advertising, profiling,
-      analytics, or any purpose other than displaying your saved sessions
-      back to you and reopening them when you ask.
-    </p>
-    <p>
-      Processing is based on your <strong>explicit action</strong>. Stash
-      captures data only when you click "Save tabs", use the keyboard
-      shortcut, or right-click a page and choose a Stash menu item.
-      Stash is never active in the background passively reading your tabs.
+      The only reason Stash reads the text of a page is to give you the feature you
+      asked for: saving the page and being able to search inside it afterwards. The
+      text is used to build a private search index and a readable copy, both stored
+      on your device. It is not used for advertising, tracking, or profiling, and it
+      is never sent to us or anyone else.
     </p>
 
-    <h2>5. Data retention and deletion</h2>
-    <p>You are in full control:</p>
+    <h2>5. Some pages cannot be read</h2>
+    <p>
+      Reading page text does not work everywhere. Browser pages (like
+      <code>chrome://</code> pages and the Chrome Web Store), PDF files, and some sites
+      that block scripts cannot be read. When that happens, Stash still saves the tab
+      as a normal link. You just will not be able to search inside that particular
+      page. Pages you saved before version 1.3 have no saved text either, so search
+      inside pages only applies to pages you save from now on.
+    </p>
+
+    <h2>6. Deleting your data</h2>
+    <p>You are in control of all of it:</p>
     <ul>
-      <li>Sessions stay in your library until you delete them.</li>
-      <li>Deleted sessions move to a trash folder and are automatically and
-          permanently removed after 30 days.</li>
-      <li>You can empty the trash at any time from the Stash popup.</li>
-      <li>You can export all sessions to a JSON file from the Settings page.</li>
-      <li>Uninstalling the extension removes all stored data from your device.</li>
+      <li>Saved groups stay until you delete them.</li>
+      <li>Deleting a group, or emptying the trash, also deletes that group's saved page
+          text and saved copies.</li>
+      <li>When you open a saved tab out of a group, or remove it, its saved text is
+          cleaned up automatically.</li>
+      <li>Deleted groups sit in the trash and are removed for good after 30 days.</li>
+      <li>You can export all your groups to a file from Settings.</li>
+      <li>Uninstalling Stash removes everything it saved from your device.</li>
     </ul>
 
-    <h2>6. Permissions and why Stash needs them</h2>
+    <h2>7. Permissions and why Stash asks for them</h2>
     <table class="permission-table">
       <tr>
         <th>Permission</th>
@@ -270,94 +278,63 @@
       </tr>
       <tr>
         <td><code>tabs</code></td>
-        <td>To read the URL, title, and favicon of your open tabs when you
-            explicitly trigger a save, and to reopen tabs when you restore
-            a session. Stash does not run content scripts or passively monitor
-            your tabs.</td>
+        <td>To read the address, title, and icon of your tabs when you save them, and
+            to reopen them when you restore a group.</td>
       </tr>
       <tr>
-        <td><code>storage</code></td>
-        <td>To persist your saved sessions and settings in
-            <code>chrome.storage.local</code> on your device.</td>
+        <td><code>scripting</code> and access to sites (<code>&lt;all_urls&gt;</code>)</td>
+        <td>To read a page's visible text at the moment you save that tab, so it can be
+            searched later. This runs only when you save, and the text stays on your
+            device. The permission covers all sites because you might save a tab from
+            any site.</td>
       </tr>
       <tr>
-        <td><code>unlimitedStorage</code></td>
-        <td>To remove Chrome's default 10 MB cap on local extension storage,
-            so users with many sessions are never silently blocked.</td>
+        <td><code>storage</code> and <code>unlimitedStorage</code></td>
+        <td>To keep your saved groups, page text, and settings on your device without
+            hitting Chrome's small storage limit.</td>
       </tr>
       <tr>
         <td><code>contextMenus</code></td>
-        <td>To add "Save this tab" and "Save all tabs in this window"
-            right-click menu entries.</td>
+        <td>To add the "Stash this tab" and "Stash all tabs" right-click menu items.</td>
       </tr>
       <tr>
         <td><code>alarms</code></td>
-        <td>To schedule a periodic background task that permanently deletes
-            trashed sessions after their 30-day retention window, so your
-            device is not holding data you intended to discard.</td>
+        <td>To run a periodic cleanup that removes trashed groups after 30 days and
+            clears out saved text that no longer belongs to any group.</td>
       </tr>
     </table>
-    <p>Stash does not request host permissions and cannot read the
-       content of any web page.</p>
 
-    <h2>7. No third-party data sharing</h2>
+    <h2>8. No servers and no other companies</h2>
     <p>
-      Stash does not sell, rent, transfer, or disclose your data to any
-      third party under any circumstances. There are no analytics services
-      (such as Google Analytics), no crash-reporting services, no advertising
-      networks, and no embedded third-party code that could transmit data.
+      Stash does not send your data anywhere. There are no accounts, no analytics, no
+      crash reporting, and no advertising code. Stash does not sell, rent, or share
+      your data with anyone. It also does not download or run any code from the
+      internet. Everything it does happens on your computer.
     </p>
 
-    <h2>8. No remote code execution</h2>
+    <h2>9. Children</h2>
     <p>
-      Stash does not fetch or execute any code from a remote server. All
-      logic ships as part of the extension package you install from the
-      Chrome Web Store. The extension makes no outbound network requests.
+      Stash is a general tool and is not aimed at children. We do not knowingly collect
+      anything from anyone under 13. Since nothing is collected on a server, there is
+      no personal data for us to hold in any case.
     </p>
 
-    <h2>9. Children's privacy</h2>
+    <h2>10. Changes to this policy</h2>
     <p>
-      Stash is a general-purpose productivity tool not directed at children.
-      We do not knowingly collect any information from users under the age of 13.
+      If we change what Stash saves or how it is used, we will update this page and the
+      date at the top. If the change is important, we will note it on the Chrome Web
+      Store listing.
     </p>
 
-    <h2>10. Your rights</h2>
+    <h2>11. Contact</h2>
     <p>
-      Because all data is stored locally on your own device, you already
-      have direct access to and control over everything Stash holds. You can:
-    </p>
-    <ul>
-      <li><strong>Access</strong> — view all sessions in the Stash popup at any time.</li>
-      <li><strong>Export</strong> — download all sessions as a JSON file from Settings.</li>
-      <li><strong>Correct</strong> — rename any session inline in the popup.</li>
-      <li><strong>Delete</strong> — remove individual sessions, empty the trash, or
-          uninstall the extension to remove all data immediately.</li>
-    </ul>
-    <p>
-      If you have questions about your data, email us at
-      <a href="mailto:2014shanoo@gmail.com">2014shanoo@gmail.com</a>.
-    </p>
-
-    <h2>11. Changes to this policy</h2>
-    <p>
-      If we materially change what data Stash collects or how it is used,
-      we will update this page and revise the "Effective date" at the top.
-      For significant changes we will post a notice in the Chrome Web Store
-      listing. Continued use of the extension after a change constitutes
-      acceptance of the updated policy.
-    </p>
-
-    <h2>12. Contact</h2>
-    <p>
-      Questions or concerns about this privacy policy or Stash's data practices:
-      <a href="mailto:2014shanoo@gmail.com">2014shanoo@gmail.com</a>
+      Questions about your data or this policy: <a href="mailto:2014shanoo@gmail.com">2014shanoo@gmail.com</a>.
     </p>
 
     <footer>
-      &copy; 2026 Shayaan Qazi &nbsp;·&nbsp;
-      <a href="https://github.com/shayaanhu/stash-for-chrome" target="_blank" rel="noopener">
-        GitHub
-      </a>
+      &copy; 2026 Shayaan Qazi &nbsp;&middot;&nbsp;
+      <a href="/how-it-works">How it works</a> &nbsp;&middot;&nbsp;
+      <a href="https://github.com/shayaanhu/stash-for-chrome" target="_blank" rel="noopener">GitHub</a>
     </footer>
 
   </div>

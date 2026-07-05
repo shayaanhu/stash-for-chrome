@@ -4,6 +4,7 @@ import {
   Clock,
   Download,
   ExternalLink,
+  Info,
   Keyboard,
   Monitor,
   Moon,
@@ -199,6 +200,12 @@ export function PopupSettings({
 
         <Row icon={<Puzzle size={16} />} title="Extension page" hint="Permissions & file access.">
           <LinkButton onClick={() => void chrome.tabs.create({ url: "chrome://extensions" })}>
+            Open <ExternalLink size={13} />
+          </LinkButton>
+        </Row>
+
+        <Row icon={<Info size={16} />} title="How Stash works" hint="Guide to saving, search, and privacy.">
+          <LinkButton onClick={() => void chrome.tabs.create({ url: "https://stashyourtabs.com/how-it-works" })}>
             Open <ExternalLink size={13} />
           </LinkButton>
         </Row>

@@ -48,8 +48,15 @@ Free to use. Install it and start saving tabs.
 - **Screenshots:** `store-assets/screenshots/shot-1..5` (+ `promo-small`, `promo-marquee`). shot-4 refreshed for v1.3 to lead on "search inside pages"; shots 1-3, 5 still reflect the live UI (regenerate all with `node .aso/render_store.mjs` if the popup chrome changes).
 - **Support URL / Homepage URL:** still empty in the dashboard — worth filling.
 
-## Permissions justification (NEW in v1.3 — required for review)
-v1.3 adds `scripting` + `host_permissions: <all_urls>`. The dashboard will require a justification. Suggested text:
-> Stash reads the text of a page only at the moment you choose to save that tab, so it can build a private, on-device search index and a readable offline copy of pages you save. Page content is stored locally in your browser and is never transmitted, sold, or shared. The broad host match is needed because a user may save a tab from any site.
+## Permissions justification (required for the v1.3 review)
+v1.3 adds the `scripting` permission and host access (`<all_urls>`). Chrome flags host access for an in-depth review, which delays publishing. This is expected and approvable. Paste the text below into the matching dashboard fields.
 
-Also update the **privacy practices** form: data type "Website content", used only for the extension's core feature, stored locally, not sold or transferred.
+**scripting:**
+> Stash uses the scripting API to read the visible text of a tab at the moment the user chooses to save (stash) that tab. It injects a one-time script that returns the page's readable text, which Stash stores locally on the user's device so the user can later search inside the pages they saved and open an offline readable copy. The script runs only in response to an explicit save action, never in the background, and the extracted text is never sent to any server.
+
+**Host permission (`<all_urls>`):**
+> Stash lets the user save any open tab, from any website, into a local group and search inside the saved page's text. To read the page text of whatever tab the user saves, Stash needs host access to the site that tab is on. Because a user can save a tab from any website, this access must cover all sites. It is used only at the moment the user saves a tab, solely to read that page's text for the extension's core save-and-search feature. No page content is transmitted, sold, or shared; everything is stored locally on the user's device.
+
+**Data safety form:** data type "Website content"; used only for the app's core feature; stored locally on the device; not sold or transferred.
+
+Note: the in-depth review is triggered by the broad host access. If you ever want to avoid it, the alternative is `optional_host_permissions` (request access at runtime the first time content capture runs). That is a code change and adds a one-time grant prompt, so it is only worth doing if the review delay becomes a real problem.

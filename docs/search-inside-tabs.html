@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Search Inside Your Tabs | Stash</title>
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <meta name="description" content="Stash remembers the text on every page you save, so you can find a saved tab by a word that was inside it, not just its title. Private and free." />
+  <meta name="theme-color" content="#1C336B" />
+  <link rel="canonical" href="https://stashyourtabs.com/search-inside-tabs" />
+  <meta property="og:title" content="Search Inside Your Tabs | Stash" />
+  <meta property="og:description" content="Find a saved tab by a word that was inside the page, not just its title. Private and free." />
+  <meta property="og:url" content="https://stashyourtabs.com/search-inside-tabs" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://stashyourtabs.com/img/og.jpg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #F4F0E4; --surface: #FFFEFA; --ink: #1C336B; --muted: #5A6E9A;
+      --border: #E0D8C4; --accent: #285CCC;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background: var(--bg); color: var(--ink);
+      -webkit-font-smoothing: antialiased; line-height: 1.65;
+    }
+    body::before {
+      content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(ellipse 70% 60% at 10% 8%, rgba(255,252,244,0.8) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 60% at 90% 90%, rgba(225,215,195,0.5) 0%, transparent 55%),
+        var(--bg);
+    }
+    nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 32px; max-width: 900px; margin: 0 auto;
+    }
+    .logo { display: flex; align-items: center; gap: 9px; text-decoration: none; }
+    .logo-mark {
+      width: 28px; height: 28px; border-radius: 7px; background: #F6EBCF;
+      border: 1px solid var(--border); position: relative; overflow: hidden;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .logo-mark::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #2A55B1; }
+    .logo-mark span { font-family: 'Fraunces', serif; font-size: 14px; font-weight: 700; color: #1D3261; margin-left: 2px; }
+    .logo-name { font-family: 'Fraunces', serif; font-size: 17px; font-weight: 600; color: var(--ink); }
+    .cta {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 22px; border-radius: 999px;
+      background: linear-gradient(180deg, #2A4A8C 0%, var(--ink) 55%, #16264F 100%);
+      color: #FFF2BD; font-size: 14px; font-weight: 700; text-decoration: none;
+      box-shadow: 0 1px 1px rgba(10,20,45,0.45), 0 6px 16px -6px rgba(28,51,107,0.42);
+    }
+    .cta.big { padding: 15px 34px; font-size: 16px; }
+    .cta:hover { filter: brightness(1.07); }
+    main { max-width: 760px; margin: 0 auto; padding: 40px 32px 80px; }
+    .eyebrow {
+      display: inline-block; font-size: 13px; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 16px;
+    }
+    h1 {
+      font-family: 'Fraunces', Georgia, serif; font-weight: 700;
+      font-size: clamp(36px, 6vw, 54px); line-height: 1.06; letter-spacing: -1px;
+      margin-bottom: 20px;
+    }
+    .lede { font-size: 19px; color: var(--muted); max-width: 620px; margin-bottom: 32px; }
+    h2 {
+      font-family: 'Fraunces', Georgia, serif; font-weight: 600; font-size: 26px;
+      margin: 48px 0 14px; letter-spacing: -0.4px;
+    }
+    p { font-size: 16.5px; color: var(--muted); margin-bottom: 16px; }
+    p strong, li strong { color: var(--ink); font-weight: 600; }
+    ul { margin: 0 0 16px 1.2rem; font-size: 16.5px; color: var(--muted); }
+    li { margin-bottom: 8px; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .steps { list-style: none; margin: 8px 0 16px; padding: 0; counter-reset: s; }
+    .steps li {
+      position: relative; padding-left: 44px; margin-bottom: 16px; counter-increment: s;
+    }
+    .steps li::before {
+      content: counter(s); position: absolute; left: 0; top: -2px;
+      width: 28px; height: 28px; border-radius: 999px;
+      background: rgba(40,92,204,0.1); color: var(--accent);
+      font-family: 'Fraunces', serif; font-weight: 700; font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .note {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 20px 24px; margin: 20px 0; font-size: 16px; color: var(--muted);
+    }
+    .note strong { color: var(--ink); }
+    .cta-block { text-align: center; margin: 56px 0 8px; }
+    .cta-sub { display: block; margin-top: 12px; font-size: 13px; color: var(--muted); }
+    footer {
+      max-width: 760px; margin: 0 auto; padding: 40px 32px 60px;
+      border-top: 1px solid var(--border); text-align: center;
+    }
+    .footer-links { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; margin-bottom: 14px; }
+    .footer-links a { font-size: 14px; color: var(--muted); }
+    .footer-copy { font-size: 12.5px; color: var(--muted); opacity: 0.7; }
+    @media (max-width: 640px) { nav { padding: 16px 20px; } main { padding: 28px 20px 60px; } }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="/" class="logo"><span class="logo-mark"><span>S</span></span><span class="logo-name">Stash</span></a>
+    <a href="https://chromewebstore.google.com/detail/stash/cgcdmjjemodohoffmgfdkgnlbcmfcbmd" class="cta" target="_blank" rel="noopener">Add to Chrome</a>
+  </nav>
+
+  <main>
+    <span class="eyebrow">Search inside your tabs</span>
+    <h1>Find a tab by what was inside it.</h1>
+    <p class="lede">
+      Most tab tools only search titles and web addresses. Stash also remembers the
+      text on every page you save, so weeks later you can search a phrase you actually
+      read and find the page again, even if those words were never in the title.
+    </p>
+    <a href="https://chromewebstore.google.com/detail/stash/cgcdmjjemodohoffmgfdkgnlbcmfcbmd" class="cta big" target="_blank" rel="noopener">Add Stash to Chrome. Free.</a>
+
+    <h2>How it works</h2>
+    <ol class="steps">
+      <li>Save a tab, or all your tabs, with one click. Stash keeps the URL, the title,
+          and the readable text that was on the page.</li>
+      <li>Later, type a word or phrase you remember reading. Stash searches inside your
+          saved pages, not just their titles.</li>
+      <li>The result shows a short snippet of the matching text, so you can see why it
+          came up and open the right one.</li>
+    </ol>
+
+    <h2>Open a saved copy, even offline</h2>
+    <p>
+      Along with the text, Stash keeps a clean, readable copy of each page. Open it and
+      it loads straight from your device. It works with no internet, and it still works
+      if the original page later changes or goes away.
+    </p>
+
+    <h2>What it does not do</h2>
+    <p>
+      Being honest matters more than overselling. Reading page text works on most normal
+      websites. It does not work on browser pages, on PDF files, or on apps that draw
+      their content on a canvas, like Google Docs. On those, Stash still saves the tab as
+      a normal link, you just cannot search inside that one. Pages you saved before this
+      feature existed have no saved text either.
+    </p>
+
+    <h2>Private by default</h2>
+    <p>
+      All of it stays on your own computer, including the page text. There is no account,
+      no sign in, and no server. Nothing is uploaded, and nothing is sold. Stash only
+      reads a page when you choose to save it. Read the
+      <a href="/privacy">privacy policy</a> for the full details.
+    </p>
+
+    <div class="cta-block">
+      <a href="https://chromewebstore.google.com/detail/stash/cgcdmjjemodohoffmgfdkgnlbcmfcbmd" class="cta big" target="_blank" rel="noopener">Add Stash to Chrome</a>
+      <span class="cta-sub">Free. No account. Nothing leaves your device.</span>
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/how-it-works">How it works</a>
+      <a href="/onetab-alternative">OneTab alternative</a>
+      <a href="/faq">FAQ</a>
+      <a href="/privacy">Privacy</a>
+    </div>
+    <span class="footer-copy">&copy; 2026 Shayaan Qazi</span>
+  </footer>
+
+</body>
+</html>

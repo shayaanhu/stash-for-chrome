@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stash FAQ | Tab Manager Questions Answered</title>
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <meta name="description" content="Common questions about Stash: is it free, is it private, can you search the text inside saved tabs, how it compares to OneTab and Chrome tab groups." />
+  <meta name="theme-color" content="#1C336B" />
+  <link rel="canonical" href="https://stashyourtabs.com/faq" />
+  <meta property="og:title" content="Stash FAQ" />
+  <meta property="og:description" content="Answers about saving tabs, searching inside them, and keeping everything private on your device." />
+  <meta property="og:url" content="https://stashyourtabs.com/faq" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://stashyourtabs.com/img/og.jpg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is Stash?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Stash is a free Chrome extension that saves your open tabs into named groups and closes them, which frees the memory they were using. You bring a group back whenever you want. It also remembers the text on each page you save, so you can search inside your saved tabs later." }
+      },
+      {
+        "@type": "Question",
+        "name": "Is Stash free?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Yes. Stash is free to use. There is no account and no paid plan required to save, search, and restore your tabs." }
+      },
+      {
+        "@type": "Question",
+        "name": "Does my data leave my device?",
+        "acceptedAnswer": { "@type": "Answer", "text": "No. Everything Stash saves stays on your own computer, including the page text it uses for search. There are no servers, no account, and no tracking. Stash never uploads or sells your data." }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I search the text inside pages I saved?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Yes. When you save a tab, Stash remembers the readable text on the page, not just its title and address. You can search a phrase you remember reading and find the page again, even if those words were never in the title." }
+      },
+      {
+        "@type": "Question",
+        "name": "How is Stash different from OneTab?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Both save your tabs into a list in one click and both run locally for free. Stash adds the parts OneTab lacks: searching the text inside saved pages, opening a saved copy of a page offline, dark mode, undo after deleting, and an automatic snapshot so a crash never wipes your tabs." }
+      },
+      {
+        "@type": "Question",
+        "name": "How is Stash different from Chrome tab groups?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Chrome tab groups only collapse your tabs. They stay open and keep using memory. Stash actually closes the tabs and saves the set, so your window and your memory are clear until you bring them back." }
+      },
+      {
+        "@type": "Question",
+        "name": "Does Stash work on Google Docs?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Stash can save a Google Doc tab as a link, but it cannot search inside it. Google Docs draws its text on a canvas instead of as normal page text, so there is nothing for Stash to read. The same is true for PDFs and a few other apps. Normal websites work fine." }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I get a tab back after I closed it with Stash?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Yes. Saved tabs stay in your library until you delete them. Open a whole group at once, or click a single tab to reopen just that one." }
+      },
+      {
+        "@type": "Question",
+        "name": "Does Stash sync across devices?",
+        "acceptedAnswer": { "@type": "Answer", "text": "No. Stash is local only, by design. Your tabs stay on the device where you saved them. You can export your whole library to a file from Settings and import it elsewhere if you want to move it." }
+      },
+      {
+        "@type": "Question",
+        "name": "What happens when I uninstall Stash?",
+        "acceptedAnswer": { "@type": "Answer", "text": "Everything Stash saved is removed from your device. Since nothing is stored on a server, there is nothing left behind anywhere else." }
+      }
+    ]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #F4F0E4; --surface: #FFFEFA; --ink: #1C336B; --muted: #5A6E9A;
+      --border: #E0D8C4; --accent: #285CCC;
+    }
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background: var(--bg); color: var(--ink);
+      -webkit-font-smoothing: antialiased; line-height: 1.65;
+    }
+    body::before {
+      content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(ellipse 70% 60% at 10% 8%, rgba(255,252,244,0.8) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 60% at 90% 90%, rgba(225,215,195,0.5) 0%, transparent 55%),
+        var(--bg);
+    }
+    nav { display: flex; align-items: center; justify-content: space-between; padding: 18px 32px; max-width: 900px; margin: 0 auto; }
+    .logo { display: flex; align-items: center; gap: 9px; text-decoration: none; }
+    .logo-mark { width: 28px; height: 28px; border-radius: 7px; background: #F6EBCF; border: 1px solid var(--border); position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .logo-mark::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #2A55B1; }
+    .logo-mark span { font-family: 'Fraunces', serif; font-size: 14px; font-weight: 700; color: #1D3261; margin-left: 2px; }
+    .logo-name { font-family: 'Fraunces', serif; font-size: 17px; font-weight: 600; color: var(--ink); }
+    .cta { display: inline-flex; align-items: center; gap: 8px; padding: 11px 22px; border-radius: 999px; background: linear-gradient(180deg, #2A4A8C 0%, var(--ink) 55%, #16264F 100%); color: #FFF2BD; font-size: 14px; font-weight: 700; text-decoration: none; box-shadow: 0 1px 1px rgba(10,20,45,0.45), 0 6px 16px -6px rgba(28,51,107,0.42); }
+    .cta.big { padding: 15px 34px; font-size: 16px; }
+    .cta:hover { filter: brightness(1.07); }
+    main { max-width: 720px; margin: 0 auto; padding: 40px 32px 80px; }
+    .eyebrow { display: inline-block; font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); margin-bottom: 16px; }
+    h1 { font-family: 'Fraunces', Georgia, serif; font-weight: 700; font-size: clamp(34px, 5.6vw, 50px); line-height: 1.07; letter-spacing: -1px; margin-bottom: 32px; }
+    .qa { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 14px; }
+    .qa h2 { font-family: 'Fraunces', Georgia, serif; font-weight: 600; font-size: 20px; margin-bottom: 8px; letter-spacing: -0.3px; }
+    .qa p { font-size: 16px; color: var(--muted); }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .cta-block { text-align: center; margin: 48px 0 8px; }
+    .cta-sub { display: block; margin-top: 12px; font-size: 13px; color: var(--muted); }
+    footer { max-width: 720px; margin: 0 auto; padding: 40px 32px 60px; border-top: 1px solid var(--border); text-align: center; }
+    .footer-links { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; margin-bottom: 14px; }
+    .footer-links a { font-size: 14px; color: var(--muted); }
+    .footer-copy { font-size: 12.5px; color: var(--muted); opacity: 0.7; }
+    @media (max-width: 640px) { nav { padding: 16px 20px; } main { padding: 28px 20px 60px; } }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="/" class="logo"><span class="logo-mark"><span>S</span></span><span class="logo-name">Stash</span></a>
+    <a href="https://chromewebstore.google.com/detail/stash/cgcdmjjemodohoffmgfdkgnlbcmfcbmd" class="cta" target="_blank" rel="noopener">Add to Chrome</a>
+  </nav>
+
+  <main>
+    <span class="eyebrow">FAQ</span>
+    <h1>Questions about Stash</h1>
+
+    <div class="qa">
+      <h2>What is Stash?</h2>
+      <p>Stash is a free Chrome extension that saves your open tabs into named groups and closes them, which frees the memory they were using. You bring a group back whenever you want. It also remembers the text on each page you save, so you can search inside your saved tabs later.</p>
+    </div>
+
+    <div class="qa">
+      <h2>Is Stash free?</h2>
+      <p>Yes. Stash is free to use. There is no account and no paid plan required to save, search, and restore your tabs.</p>
+    </div>
+
+    <div class="qa">
+      <h2>Does my data leave my device?</h2>
+      <p>No. Everything Stash saves stays on your own computer, including the page text it uses for search. There are no servers, no account, and no tracking. Stash never uploads or sells your data.</p>
+    </div>
+
+    <div class="qa">
+      <h2>Can I search the text inside pages I saved?</h2>
+      <p>Yes. When you save a tab, Stash remembers the readable text on the page, not just its title and address. You can search a phrase you remember reading and find the page again, even if those words were never in the title.</p>
+    </div>
+
+    <div class="qa">
+      <h2>How is Stash different from OneTab?</h2>
+      <p>Both save your tabs into a list in one click and both run locally for free. Stash adds the parts OneTab lacks: searching the text inside saved pages, opening a saved copy of a page offline, dark mode, undo after deleting, and an automatic snapshot so a crash never wipes your tabs. More on the <a href="/onetab-alternative">OneTab alternative</a> page.</p>
+    </div>
+
+    <div class="qa">
+      <h2>How is Stash different from Chrome tab groups?</h2>
+      <p>Chrome tab groups only collapse your tabs. They stay open and keep using memory. Stash actually closes the tabs and saves the set, so your window and your memory are clear until you bring them back.</p>
+    </div>
+
+    <div class="qa">
+      <h2>Does Stash work on Google Docs?</h2>
+      <p>Stash can save a Google Doc tab as a link, but it cannot search inside it. Google Docs draws its text on a canvas instead of as normal page text, so there is nothing for Stash to read. The same is true for PDFs and a few other apps. Normal websites work fine.</p>
+    </div>
+
+    <div class="qa">
+      <h2>Can I get a tab back after I closed it with Stash?</h2>
+      <p>Yes. Saved tabs stay in your library until you delete them. Open a whole group at once, or click a single tab to reopen just that one.</p>
+    </div>
+
+    <div class="qa">
+      <h2>Does Stash sync across devices?</h2>
+      <p>No. Stash is local only, by design. Your tabs stay on the device where you saved them. You can export your whole library to a file from Settings and import it elsewhere if you want to move it.</p>
+    </div>
+
+    <div class="qa">
+      <h2>What happens when I uninstall Stash?</h2>
+      <p>Everything Stash saved is removed from your device. Since nothing is stored on a server, there is nothing left behind anywhere else.</p>
+    </div>
+
+    <div class="cta-block">
+      <a href="https://chromewebstore.google.com/detail/stash/cgcdmjjemodohoffmgfdkgnlbcmfcbmd" class="cta big" target="_blank" rel="noopener">Add Stash to Chrome</a>
+      <span class="cta-sub">Free. No account. Nothing leaves your device.</span>
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/how-it-works">How it works</a>
+      <a href="/search-inside-tabs">Search inside tabs</a>
+      <a href="/onetab-alternative">OneTab alternative</a>
+      <a href="/privacy">Privacy</a>
+    </div>
+    <span class="footer-copy">&copy; 2026 Shayaan Qazi</span>
+  </footer>
+
+</body>
+</html>

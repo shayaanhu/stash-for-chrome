@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OneTab Alternative | Stash</title>
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <meta name="description" content="A OneTab alternative that saves your tabs in one click and lets you search the text inside them, not just their titles. Private, free, with dark mode and undo." />
+  <meta name="theme-color" content="#1C336B" />
+  <link rel="canonical" href="https://stashyourtabs.com/onetab-alternative" />
+  <meta property="og:title" content="OneTab Alternative | Stash" />
+  <meta property="og:description" content="Saves your tabs in one click like OneTab, then lets you search the text inside them. Private, free, with dark mode and undo." />
+  <meta property="og:url" content="https://stashyourtabs.com/onetab-alternative" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://stashyourtabs.com/img/og.jpg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #F4F0E4; --surface: #FFFEFA; --ink: #1C336B; --muted: #5A6E9A;
+      --border: #E0D8C4; --accent: #285CCC; --good: #2E7D46;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background: var(--bg); color: var(--ink);
+      -webkit-font-smoothing: antialiased; line-height: 1.65;
+    }
+    body::before {
+      content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(ellipse 70% 60% at 10% 8%, rgba(255,252,244,0.8) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 60% at 90% 90%, rgba(225,215,195,0.5) 0%, transparent 55%),
+        var(--bg);
+    }
+    nav { display: flex; align-items: center; justify-content: space-between; padding: 18px 32px; max-width: 900px; margin: 0 auto; }
+    .logo { display: flex; align-items: center; gap: 9px; text-decoration: none; }
+    .logo-mark { width: 28px; height: 28px; border-radius: 7px; background: #F6EBCF; border: 1px solid var(--border); position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .logo-mark::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #2A55B1; }
+    .logo-mark span { font-family: 'Fraunces', serif; font-size: 14px; font-weight: 700; color: #1D3261; margin-left: 2px; }
+    .logo-name { font-family: 'Fraunces', serif; font-size: 17px; font-weight: 600; color: var(--ink); }
+    .cta { display: inline-flex; align-items: center; gap: 8px; padding: 11px 22px; border-radius: 999px; background: linear-gradient(180deg, #2A4A8C 0%, var(--ink) 55%, #16264F 100%); color: #FFF2BD; font-size: 14px; font-weight: 700; text-decoration: none; box-shadow: 0 1px 1px rgba(10,20,45,0.45), 0 6px 16px -6px rgba(28,51,107,0.42); }
+    .cta.big { padding: 15px 34px; font-size: 16px; }
+    .cta:hover { filter: brightness(1.07); }
+    main { max-width: 760px; margin: 0 auto; padding: 40px 32px 80px; }
+    .eyebrow { display: inline-block; font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); margin-bottom: 16px; }
+    h1 { font-family: 'Fraunces', Georgia, serif; font-weight: 700; font-size: clamp(34px, 5.6vw, 50px); line-height: 1.07; letter-spacing: -1px; margin-bottom: 20px; }
+    .lede { font-size: 19px; color: var(--muted); max-width: 640px; margin-bottom: 32px; }
+    h2 { font-family: 'Fraunces', Georgia, serif; font-weight: 600; font-size: 26px; margin: 48px 0 14px; letter-spacing: -0.4px; }
+    p { font-size: 16.5px; color: var(--muted); margin-bottom: 16px; }
+    p strong { color: var(--ink); font-weight: 600; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .table-wrap { overflow-x: auto; margin: 20px 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 15.5px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    th, td { text-align: left; padding: 13px 16px; border-bottom: 1px solid var(--border); }
+    thead th { background: #EFE9DA; font-size: 14px; color: var(--ink); }
+    thead th:not(:first-child), tbody td:not(:first-child) { text-align: center; width: 130px; }
+    tbody tr:last-child td { border-bottom: none; }
+    td.feat { color: var(--ink); font-weight: 500; }
+    td.muted { color: var(--muted); }
+    .yes { color: var(--good); font-weight: 700; }
+    .no { color: #B0554F; font-weight: 700; }
+    .cta-block { text-align: center; margin: 56px 0 8px; }
+    .cta-sub { display: block; margin-top: 12px; font-size: 13px; color: var(--muted); }
+    footer { max-width: 760px; margin: 0 auto; padding: 40px 32px 60px; border-top: 1px solid var(--border); text-align: center; }
+    .footer-links { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; margin-bottom: 14px; }
+    .footer-links a { font-size: 14px; color: var(--muted); }
+    .footer-copy { font-size: 12.5px; color: var(--muted); opacity: 0.7; }
+    @media (max-width: 640px) { nav { padding: 16px 20px; } main { padding: 28px 20px 60px; } }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="/" class="logo"><span class="logo-mark"><span>S</span></span><span class="logo-name">Stash</span></a>
+    <a href="https://chromewebstore.google.com/detail/stash/cgcdmjjemodohoffmgfdkgnlbcmfcbmd" class="cta" target="_blank" rel="noopener">Add to Chrome</a>
+  </nav>
+
+  <main>
+    <span class="eyebrow">OneTab alternative</span>
+    <h1>A OneTab alternative that remembers what was inside your tabs.</h1>
+    <p class="lede">
+      Stash does the same one click save that made OneTab popular, then goes further.
+      It searches the text inside the pages you saved, keeps a readable copy you can
+      open offline, and has the dark mode and undo that OneTab never added. All local,
+      all free.
+    </p>
+    <a href="https://chromewebstore.google.com/detail/stash/cgcdmjjemodohoffmgfdkgnlbcmfcbmd" class="cta big" target="_blank" rel="noopener">Add Stash to Chrome. Free.</a>
+
+    <h2>Stash next to OneTab</h2>
+    <p>OneTab is good at one thing: dump your tabs into a list and free the memory. Stash keeps that, and adds the parts people keep asking OneTab for.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Feature</th><th>Stash</th><th>OneTab</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="feat">Save and close all tabs in one click</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+          <tr><td class="feat">Frees the memory the tabs were using</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+          <tr><td class="feat">Runs locally, free, no account</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+          <tr><td class="feat">Search the text inside saved pages</td><td class="yes">Yes</td><td class="no">No</td></tr>
+          <tr><td class="feat">Open a saved copy of a page, offline</td><td class="yes">Yes</td><td class="no">No</td></tr>
+          <tr><td class="feat">Dark mode</td><td class="yes">Yes</td><td class="no">No</td></tr>
+          <tr><td class="feat">Undo after deleting</td><td class="yes">Yes</td><td class="no">No</td></tr>
+          <tr><td class="feat">Auto-saves a snapshot so a crash never wipes tabs</td><td class="yes">Yes</td><td class="no">No</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>What about Toby, Workona, and Session Buddy?</h2>
+    <p>
+      They are good tools, they just solve a different problem. Toby gives you a visual
+      board of collections. Workona builds project workspaces and syncs them across
+      devices. Session Buddy backs up and restores whole sessions. If you want a project
+      dashboard or cross device sync, look at those.
+    </p>
+    <p>
+      Stash is for the simpler, more common case: save your tabs, keep everything on your
+      own device, and be able to find a page later by a word that was inside it. No
+      account, no dashboard to maintain, no learning curve.
+    </p>
+
+    <h2>Private and free</h2>
+    <p>
+      Everything Stash saves stays on your computer, including the page text it uses for
+      search. No servers, no sign in, no tracking. Uninstall it and everything is gone.
+      See <a href="/how-it-works">how it works</a> or read the
+      <a href="/privacy">privacy policy</a>.
+    </p>
+
+    <div class="cta-block">
+      <a href="https://chromewebstore.google.com/detail/stash/cgcdmjjemodohoffmgfdkgnlbcmfcbmd" class="cta big" target="_blank" rel="noopener">Add Stash to Chrome</a>
+      <span class="cta-sub">Free. No account. Nothing leaves your device.</span>
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/how-it-works">How it works</a>
+      <a href="/search-inside-tabs">Search inside tabs</a>
+      <a href="/faq">FAQ</a>
+      <a href="/privacy">Privacy</a>
+    </div>
+    <span class="footer-copy">&copy; 2026 Shayaan Qazi</span>
+  </footer>
+
+</body>
+</html>

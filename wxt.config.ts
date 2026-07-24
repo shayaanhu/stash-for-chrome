@@ -9,15 +9,15 @@ export default defineConfig({
     plugins: [tailwindcss()]
   }),
   manifest: {
-    name: "Stash - Tab Manager, Save & Restore Tabs",
+    name: "Search Inside Saved Tabs - Stash Tab Manager",
     description:
-      "Save your open tabs in one click, then find any page later by the words inside it, not just the title. Private, all on your device.",
-    version: "1.3.0",
+      "Search inside your saved tabs by the words on the page, not just the title. Save tabs in one click, private and all on your device.",
+    version: "1.3.1",
     minimum_chrome_version: "116",
     permissions: ["contextMenus", "storage", "unlimitedStorage", "tabs", "alarms", "favicon", "scripting"],
     host_permissions: ["<all_urls>"],
     action: {
-      default_title: "Stash — save your tabs"
+      default_title: "Stash - save your tabs"
     },
     commands: {
       "save-all-tabs": {

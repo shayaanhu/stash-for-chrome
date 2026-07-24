@@ -1,4 +1,4 @@
-# Stash — Live Store Listing (v1.3)
+# Stash - Live Store Listing (v1.3.1)
 
 > The current source of truth for the published Chrome Web Store listing.
 > Title and summary ship from the package (`wxt.config.ts`); the description is
@@ -7,22 +7,26 @@
 
 ## Title
 ```
-Stash - Tab Manager, Save & Restore Tabs
+Search Inside Saved Tabs - Stash Tab Manager
 ```
+> Keyword-first trade (see ASO.md): leads with the exact wedge, searching the text
+> inside saved pages, then keeps "tab manager" at the tail for findability. We stopped
+> leading with "tab manager / save & restore tabs", the crowded phrase owned by the
+> incumbents, because we cannot rank on it.
 
 ## Summary
 ```
-Save your open tabs in one click, then find any page later by the words inside it, not just the title. Private, all on your device.
+Search inside your saved tabs by the words on the page, not just the title. Save tabs in one click, private and all on your device.
 ```
 
 ## Description
 ```
-Open tabs pile up. They slow your browser and eat memory, but you don't want to close them and lose your place, or lose the thing you were reading.
+You saved that page. Now you can't remember its title, only a phrase that was on it. Stash finds it. When you save a tab, Stash remembers the words on the page, not just the title and address, so weeks later you can search what you actually read and get the page back, even when those words were never in the title.
 
-Stash fixes both. One click saves every tab in your window into a named, searchable session, then closes them so your memory and CPU go back to the tabs you're actually using. Bring the whole set back whenever you want. Nothing gets lost.
+That is what makes Stash different from every other tab saver. It also keeps a readable copy of each page you can open in an instant, straight from your device, so you can still read it if the original page changes or disappears.
 
-SEARCH INSIDE YOUR PAGES
-This is what makes Stash different. When you save a tab, Stash remembers the text on the page, not just its title and address. Weeks later, search a phrase you remember reading and Stash finds the page, even when those words were never in the title. It also keeps a readable copy you can open in an instant, straight from your device, so you can still read it if the original page changes or disappears.
+SAVE AND CLEAR YOUR TABS
+One click saves every tab in your window into a named, searchable session, then closes them so your memory and CPU go back to the tabs you're actually using. Bring the whole set back whenever you want. Nothing gets lost.
 
 FREE UP MEMORY
 Every open tab is a live page using RAM. Save a session and Stash closes those tabs and hands the memory back. Restoring is just as safe: tabs come back unloaded and load only when you click them, so even hundreds of tabs won't choke your browser.
@@ -37,7 +41,9 @@ THE BASICS
 - Deleted sessions stay in trash for 30 days. Export or import your whole library as JSON anytime.
 
 PRIVATE BY DEFAULT
-Everything stays on your device, including the page text Stash saves so you can search it. No account, no servers, no analytics. Stash never sends your tabs or your browsing anywhere.
+Stash only reads a page when you choose to save that tab. It does not read, watch, or capture every tab you have open, and it never runs in the background. Nothing happens until you save a tab, and only that tab is read.
+
+Everything then stays on your device, including the page text Stash saves so you can search it. No account, no servers, no analytics. Stash never sends your tabs or your browsing anywhere.
 
 Free to use. Install it and start saving tabs.
 ```

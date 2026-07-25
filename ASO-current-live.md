@@ -5,57 +5,105 @@
 > pasted into the dashboard. Strategy and keyword rationale live in [ASO.md](ASO.md).
 > No competitor names, anywhere. No "forever" claims.
 
+## The rule this rewrite is built on
+
+**Discovery terms and differentiation terms are different jobs, and the title is a
+discovery field.**
+
+The previous title led with "Search Inside Saved Tabs". That is the correct *pitch*
+and a terrible *query*: nobody types it into the store box, so we ranked first for
+zero volume. The wedge sells the install once someone is looking at the listing. It
+cannot be what makes them look.
+
+So: the title leads with a phrase people actually type, then carries the wedge, then
+the two category words. The wedge moves to the summary, the first line of the
+description, and screenshot 1, where it does its real job of converting.
+
 ## Title
 ```
-Search Inside Saved Tabs - Stash Tab Manager
+Save Tabs, Search Inside Them - Stash Tab & Session Manager
 ```
-> Keyword-first trade (see ASO.md): leads with the exact wedge, searching the text
-> inside saved pages, then keeps "tab manager" at the tail for findability. We stopped
-> leading with "tab manager / save & restore tabs", the crowded phrase owned by the
-> incumbents, because we cannot rank on it.
+59 / 75 characters. Every segment is doing work:
+- `Save Tabs` - a real, moderate-competition query, and the literal action a user
+  wants. Prime position, where the store weights title matches hardest.
+- `Search Inside Them` - the wedge, and it makes the title read as a sentence rather
+  than keyword soup. Survives the ~45-character truncation in search results, so the
+  differentiator is still visible in the list view.
+- `Tab & Session Manager` - both category terms in one phrase. We will never rank on
+  the head of either, but they qualify us for the long tail ("session manager for
+  chrome", "tab manager save tabs") where the incumbents are not optimizing.
+
+Brand sits mid-string on purpose. Convention in this category is brand-first, but a
+brand nobody searches earns nothing in the highest-weighted position on the listing.
 
 ## Summary
 ```
-Search inside your saved tabs by the words on the page, not just the title. Save tabs in one click, private and all on your device.
+Save all your tabs in one click to free up memory. Later, find any page by the words that were inside it. Local and private.
 ```
+124 / 132 characters. Picks up `free up memory`, the highest-volume phrase we could
+not fit in the title, then delivers the wedge in plain language.
 
 ## Description
 ```
-You saved that page. Now you can't remember its title, only a phrase that was on it. Stash finds it. When you save a tab, Stash remembers the words on the page, not just the title and address, so weeks later you can search what you actually read and get the page back, even when those words were never in the title.
+You saved that page. Weeks later you cannot remember the site or the title, only a phrase that was written on it. Type that phrase into Stash and the page comes back.
 
-That is what makes Stash different from every other tab saver. It also keeps a readable copy of each page you can open in an instant, straight from your device, so you can still read it if the original page changes or disappears.
+That is the difference. Every other tab manager saves a link. Stash saves the words on the page too, so you can find anything you kept by what you actually read, not by what it happened to be called.
 
-SAVE AND CLEAR YOUR TABS
-One click saves every tab in your window into a named, searchable session, then closes them so your memory and CPU go back to the tabs you're actually using. Bring the whole set back whenever you want. Nothing gets lost.
+SAVE YOUR TABS IN ONE CLICK
+One click saves every tab in your window into a named group, then closes them. Your window is clear, your memory and CPU go back to the tabs you are actually using, and nothing is lost. Bring the whole group back whenever you want, or reopen a single tab.
 
 FREE UP MEMORY
-Every open tab is a live page using RAM. Save a session and Stash closes those tabs and hands the memory back. Restoring is just as safe: tabs come back unloaded and load only when you click them, so even hundreds of tabs won't choke your browser.
+Every open tab is a live page holding RAM. Save a group and Stash hands that memory back. Restoring is just as light: tabs come back unloaded and load only when you click them, so even hundreds of tabs will not choke your browser.
 
-THE BASICS
-- Save all your tabs in one click, or save a single tab from the right-click menu.
-- Restore a full session or just one tab. Press Ctrl+Shift+S (Cmd+Shift+S on Mac) to save without opening the popup.
-- Search across every session, title, URL, and the text inside your saved pages.
-- Open a saved copy of any page, instantly and offline.
-- Auto-save snapshots your tabs every few minutes, so a crash never sets you back.
-- Rename, reorder, and sort sessions. Light and dark themes built in.
-- Deleted sessions stay in trash for 30 days. Export or import your whole library as JSON anytime.
+SEARCH INSIDE THE PAGES YOU SAVED
+One search box covers group names, tab titles, addresses, and the full text of the pages you saved. The matching line is shown in the result, so you can see it is the right page before you open it. This is the part nothing else does.
+
+OPEN A SAVED COPY, OFFLINE
+Stash keeps a readable copy of every page you save. Open it instantly from your own disk with no network, and read it even if the original has changed, gone behind a paywall, or disappeared.
+
+NEVER LOSE A SESSION
+- Press Ctrl+Shift+S (Cmd+Shift+S on Mac) to save everything without opening the popup.
+- Save a single tab from the right-click menu.
+- Auto-save snapshots your tabs every few minutes, so a crash or an accidental close never sets you back.
+- Deleted groups sit in the trash for 30 days.
+- Undo on every destructive action.
+- Export or import your whole library as JSON whenever you want.
+
+MADE TO LIVE IN
+Rename groups, reorder them, drag tabs between them, select many at once, and sort however you like. Light and dark themes built in. It stays quick when your library gets big.
 
 PRIVATE BY DEFAULT
-Stash only reads a page when you choose to save that tab. It does not read, watch, or capture every tab you have open, and it never runs in the background. Nothing happens until you save a tab, and only that tab is read.
+Stash reads a page only at the moment you choose to save that tab. It does not read, watch, or capture the tabs you have open, and it never runs in the background.
 
-Everything then stays on your device, including the page text Stash saves so you can search it. No account, no servers, no analytics. Stash never sends your tabs or your browsing anywhere.
+Everything then stays on your device, including the page text that makes search work. No account, no servers, no analytics, no tracking. Nothing is ever uploaded or sold.
 
-Free to use. Install it and start saving tabs.
+Free to use. Install it, press Ctrl+Shift+S, and get your window back.
 ```
+
+Keyword coverage in the body, all placed in sentences a human would actually write:
+`tab manager`, `save tabs`, `free up memory`, `session`, `restore`, `search inside
+pages`, `offline`, `crash recovery`, `auto-save`, `export import`, `dark mode`,
+`private`, `local`.
 
 ## Other listing fields
 - **Category:** Tools
-- **Language:** English (localizing is the top growth lever — see ASO.md §6)
-- **Screenshots:** `store-assets/screenshots/shot-1..5` (+ `promo-small`, `promo-marquee`). shot-4 refreshed for v1.3 to lead on "search inside pages"; shots 1-3, 5 still reflect the live UI (regenerate all with `node .aso/render_store.mjs` if the popup chrome changes).
-- **Support URL / Homepage URL:** still empty in the dashboard — worth filling.
+- **Language:** English. Localizing is a real lever but it multiplies impressions, and
+  at a cold start there are almost none to multiply. Revisit after the first few
+  hundred installs (see ASO.md §6).
+- **Screenshots:** `store-assets/screenshots/shot-1..5` (+ `promo-small`,
+  `promo-marquee`). Shot 1 must carry the wedge, since the title now leads with the
+  discovery term instead. Regenerate with `node .aso/render_store.mjs`.
+- **Homepage URL:** `https://stashyourtabs.com/`
+- **Support URL:** `https://stashyourtabs.com/support`
+
+Both URL fields were empty in the dashboard. Fill them. They are a trust signal in the
+listing, a ranking input, and the only route a confused user has to reach you instead
+of leaving a one-star review.
 
 ## Permissions justification (required for the v1.3 review)
-v1.3 adds the `scripting` permission and host access (`<all_urls>`). Chrome flags host access for an in-depth review, which delays publishing. This is expected and approvable. Paste the text below into the matching dashboard fields.
+v1.3 adds the `scripting` permission and host access (`<all_urls>`). Chrome flags host
+access for an in-depth review, which delays publishing. This is expected and
+approvable. Paste the text below into the matching dashboard fields.
 
 **scripting:**
 > Stash uses the scripting API to read the visible text of a tab at the moment the user chooses to save (stash) that tab. It injects a one-time script that returns the page's readable text, which Stash stores locally on the user's device so the user can later search inside the pages they saved and open an offline readable copy. The script runs only in response to an explicit save action, never in the background, and the extracted text is never sent to any server.

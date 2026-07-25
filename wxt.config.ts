@@ -9,9 +9,9 @@ export default defineConfig({
     plugins: [tailwindcss()]
   }),
   manifest: {
-    name: "Search Inside Saved Tabs - Stash Tab Manager",
+    name: "Save Tabs, Search Inside Them - Stash Tab & Session Manager",
     description:
-      "Search inside your saved tabs by the words on the page, not just the title. Save tabs in one click, private and all on your device.",
+      "Save all your tabs in one click to free up memory. Later, find any page by the words that were inside it. Local and private.",
     version: "1.3.1",
     minimum_chrome_version: "116",
     permissions: ["contextMenus", "storage", "unlimitedStorage", "tabs", "alarms", "favicon", "scripting"],

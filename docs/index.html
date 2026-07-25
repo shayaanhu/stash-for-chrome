@@ -3,25 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Stash - Tab Manager to Save &amp; Restore Your Tabs</title>
+  <title>Stash - Save Your Tabs and Search Inside Them | Chrome Tab Manager</title>
   <link rel="icon" type="image/png" href="favicon.png" />
-  <meta name="description" content="Save all your open tabs in one click to free up memory, then restore them any time. A fast, private Chrome tab manager. Free." />
+  <meta name="description" content="Save all your open tabs in one click to free up memory. Weeks later, find any page by a phrase that was written inside it. A private, local Chrome tab manager. Free." />
   <meta name="theme-color" content="#1C336B" />
   <meta name="robots" content="index, follow" />
   <link rel="canonical" href="https://stashyourtabs.com/" />
 
   <!-- Open Graph (social previews on HN, Reddit, X, Slack, etc.) -->
   <meta property="og:site_name" content="Stash" />
-  <meta property="og:title" content="Stash - Tab Manager to Save &amp; Restore Your Tabs" />
-  <meta property="og:description" content="Save all your open tabs in one click to free up memory, then restore them any time. A fast, private Chrome tab manager." />
+  <meta property="og:title" content="Stash - Save your tabs, then search the words inside them" />
+  <meta property="og:description" content="One click saves every open tab and frees the memory. Weeks later, type a phrase you remember reading and the page comes back. Local, private, free." />
   <meta property="og:url" content="https://stashyourtabs.com/" />
   <meta property="og:type" content="website" />
   <meta property="og:image" content="https://stashyourtabs.com/img/og.jpg" />
   <meta property="og:image:width" content="1280" />
   <meta property="og:image:height" content="800" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Stash - Tab Manager to Save &amp; Restore Your Tabs" />
-  <meta name="twitter:description" content="Save your open tabs in one click to free up memory, then restore them any time. Fast, private, free." />
+  <meta name="twitter:title" content="Stash - Save your tabs, then search the words inside them" />
+  <meta name="twitter:description" content="One click saves every open tab and frees the memory. Weeks later, type a phrase you remember reading and the page comes back. Local, private, free." />
   <meta name="twitter:image" content="https://stashyourtabs.com/img/og.jpg" />
 
   <!-- Structured data: lets Google show this as a software app result -->
@@ -29,10 +29,10 @@
   {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    "name": "Stash - Tab Manager",
+    "name": "Stash - Tab & Session Manager",
     "applicationCategory": "BrowserApplication",
     "operatingSystem": "Chrome",
-    "description": "Save your open tabs in one click, then search inside the pages you saved to find any of them again. A fast, private Chrome tab manager. Free.",
+    "description": "Save all your open tabs in one click to free up memory, then find any page again by a phrase that was written inside it. A private, local Chrome tab manager. Free.",
     "url": "https://stashyourtabs.com/",
     "downloadUrl": "https://chromewebstore.google.com/detail/stash/cgcdmjjemodohoffmgfdkgnlbcmfcbmd",
     "image": "https://stashyourtabs.com/img/og.jpg",
@@ -238,6 +238,7 @@
     .feat.visible { opacity: 1; transform: none; }
     .feat:nth-child(2) { transition-delay: 0.1s; }
     .feat:nth-child(3) { transition-delay: 0.2s; }
+    .feat:nth-child(4) { transition-delay: 0.3s; }
     .feat-num {
       font-family: 'Fraunces', Georgia, serif;
       font-size: 13px; font-weight: 600;
@@ -511,8 +512,8 @@
   </nav>
 
   <section class="hero">
-    <h1 id="headline">Save your tabs. Come back later.</h1>
-    <p class="hero-sub">One click stashes every open tab into a named session.<br>Find it, restore it, move on.</p>
+    <h1 id="headline">Save your tabs.<br>Search the words inside them.</h1>
+    <p class="hero-sub">One click stashes every open tab and hands back the memory.<br>Weeks later, type a phrase you remember reading and the page comes back.</p>
     <div class="cta-wrap">
       <a href="https://chromewebstore.google.com/detail/stash/cgcdmjjemodohoffmgfdkgnlbcmfcbmd" class="cta" target="_blank" rel="noopener">
         <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M3 2h9v9.5l-4.5-2.5L3 11.5V2z" stroke="#FFF2BD" stroke-width="1.5" stroke-linejoin="round"/></svg>
@@ -551,9 +552,9 @@
             <span class="sim-icon-wrap">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.001M10 8h.001M14 8h.001M18 8h.001M8 12h.001M12 12h.001M16 12h.001M7 16h10"/></svg>
             </span>
-            <h3 class="sim-title">Chrome Shortcut</h3>
+            <h3 class="sim-title">One key, window clear</h3>
           </div>
-          <p class="sim-desc">Press the key combination to sweep your workspace instantly without lifting your hands.</p>
+          <p class="sim-desc">Hit Ctrl+Shift+S and every open tab is saved and closed. No popup, no hands off the keyboard.</p>
         </div>
       </div>
 
@@ -591,9 +592,9 @@
             <span class="sim-icon-wrap">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
             </span>
-            <h3 class="sim-title">Single-Click Restore</h3>
+            <h3 class="sim-title">Bring the whole set back</h3>
           </div>
-          <p class="sim-desc">Hover over any stashed session and click the Restore button to bring all tabs back instantly.</p>
+          <p class="sim-desc">One click reopens every tab in a group exactly as you left it. Or click a single tab to take just that one.</p>
         </div>
       </div>
 
@@ -633,9 +634,9 @@
             <span class="sim-icon-wrap">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
             </span>
-            <h3 class="sim-title">Keep Within Reach</h3>
+            <h3 class="sim-title">Pin it where you look</h3>
           </div>
-          <p class="sim-desc">Pin Stash so it remains one click away. A cluttered browser is resolved in a split second.</p>
+          <p class="sim-desc">Pin Stash to the toolbar once and it's always a click away, right where the tab pile builds up.</p>
         </div>
       </div>
 
@@ -646,22 +647,29 @@
     <div class="feat" id="f1">
       <span class="feat-num">1</span>
       <div>
-        <div class="feat-title">Save in one click</div>
-        <div class="feat-desc">Click the toolbar icon or press Ctrl+Shift+S. Every open tab goes into a named session, then clears.</div>
+        <div class="feat-title">Save in one click, get the memory back</div>
+        <div class="feat-desc">Click the toolbar icon or press Ctrl+Shift+S. Every open tab goes into a named group and the window clears, so the RAM those tabs were holding goes back to the work you're actually doing.</div>
       </div>
     </div>
     <div class="feat" id="f2">
       <span class="feat-num">2</span>
       <div>
-        <div class="feat-title">Find it later</div>
-        <div class="feat-desc">Sessions are named from the date and first tab. Rename them anything. Search across names, titles, URLs, and even the text inside the pages you saved.</div>
+        <div class="feat-title">Find it by a word that was inside it</div>
+        <div class="feat-desc">Stash keeps the text of every page you save, not just its link. Search a phrase you remember reading and the page comes back, even when those words were never in the title. The matching line is shown in the result, so you know it's the right one before you open it.</div>
       </div>
     </div>
     <div class="feat" id="f3">
       <span class="feat-num">3</span>
       <div>
+        <div class="feat-title">Open the saved copy, even offline</div>
+        <div class="feat-desc">Every saved page keeps a readable copy on your disk. It opens instantly with no network, and it still opens if the original changed, went behind a paywall, or vanished.</div>
+      </div>
+    </div>
+    <div class="feat" id="f4">
+      <span class="feat-num">4</span>
+      <div>
         <div class="feat-title">Nothing leaves your machine</div>
-        <div class="feat-desc">All data stays in your browser's local storage. No servers, no account, no tracking. Uninstall and it's gone.</div>
+        <div class="feat-desc">Stash reads a page only at the moment you save that tab, never in the background. What it saves stays on your device, page text included. No account, no servers, no tracking.</div>
       </div>
     </div>
   </div>
@@ -673,6 +681,7 @@
       <a href="/search-inside-tabs">Search inside tabs</a>
       <a href="/onetab-alternative">OneTab alternative</a>
       <a href="/faq">FAQ</a>
+      <a href="/support">Support</a>
       <a href="/privacy">Privacy Policy</a>
     </div>
     <span class="footer-copy">&copy; 2026 Shayaan Qazi</span>

@@ -334,6 +334,19 @@ export function PopupApp() {
     });
   }, [openTabs]);
 
+  /**
+   * Chrome forbids extensions from reading or closing its own pages (chrome://,
+   * the Web Store, other extensions). Those tabs are left open on purpose, but
+   * saying nothing makes a stash look half-broken -- which is exactly how it
+   * reads to someone trying Stash with the Web Store still open.
+   */
+  function skippedNote(skipped: number | undefined): string | undefined {
+    if (!skipped || skipped < 1) return undefined;
+    return skipped === 1
+      ? "1 browser page stayed open. Chrome doesn't allow saving it."
+      : `${skipped} browser pages stayed open. Chrome doesn't allow saving them.`;
+  }
+
   async function handleSaveTabs() {
     setIsSaving(true);
     const response = await sendBackgroundRequest({ type: "SAVE_TABS", target: saveTarget });
@@ -356,6 +369,7 @@ export function PopupApp() {
     setTimeout(() => setFreshlySavedId(null), reduceMotion ? 0 : 1800);
     setTimeout(
       () => toast.success(`Saved ${saved.tabs.length} ${saved.tabs.length === 1 ? "tab" : "tabs"}.`, {
+        description: skippedNote(response.skipped),
         action: { label: "Undo", onClick: () => void undoSave(saved) },
       }),
       reduceMotion ? 0 : 520,
@@ -454,7 +468,9 @@ export function PopupApp() {
     }
 
     const saved = response.session;
-    const n = ids.length;
+    // Count what was actually stashed, not what was selected -- Chrome pages in
+    // the selection are dropped, and reporting the selection over-counts them.
+    const n = target.mode === "new" ? saved.tabs.length : ids.length - (response.skipped ?? 0);
     setSelectedTabIds(new Set());
     setSaveBurst({ id: saved.id, tabs: saved.tabs.slice(0, 4) });
     setFreshlySavedId(saved.id);
@@ -472,8 +488,13 @@ export function PopupApp() {
           target.mode === "new"
             ? `Stashed ${n} ${n === 1 ? "tab" : "tabs"}.`
             : `Added ${n} ${n === 1 ? "tab" : "tabs"} to “${saved.name}”.`,
-          // Undo only the brand-new-group case cleanly (reopen + drop the group).
-          target.mode === "new" ? { action: { label: "Undo", onClick: () => void undoSave(saved) } } : undefined,
+          {
+            description: skippedNote(response.skipped),
+            // Undo only the brand-new-group case cleanly (reopen + drop the group).
+            ...(target.mode === "new"
+              ? { action: { label: "Undo", onClick: () => void undoSave(saved) } }
+              : {}),
+          },
         ),
       reduceMotion ? 0 : 520,
     );

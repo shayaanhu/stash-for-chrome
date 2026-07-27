@@ -27,7 +27,6 @@ import {
   createSessionFromChromeTabs,
   createStashTab,
   isSavableChromeTab,
-  isTabPinned,
 } from "../src/shared/session-utils";
 import type { BackgroundRequest, BackgroundResponse } from "../src/shared/messages";
 import {
@@ -37,9 +36,16 @@ import {
   MAX_CONTENT_CHARS,
   MAX_SNAPSHOT_CHARS,
 } from "../src/shared/content-store";
+import { closeTabsResiliently, settleWithin } from "../src/shared/tab-close";
 
 const TRASH_PURGE_ALARM = "stash-trash-purge";
 const TRASH_PURGE_PERIOD_MINUTES = 6 * 60;
+
+// Capture is best-effort and must never delay a close. A page whose main thread is
+// blocked (modal dialog, heavy sync script) can leave executeScript pending forever,
+// and every second we wait is another second a tab id can go stale.
+const CAPTURE_TAB_TIMEOUT_MS = 2_000;
+const CAPTURE_TOTAL_TIMEOUT_MS = 6_000;
 
 const AUTO_SAVE_ALARM = "stash-autosave";
 const AUTO_SAVE_PERIOD_MINUTES = 5;
@@ -163,8 +169,10 @@ async function doSetupContextMenus(): Promise<void> {
 async function handleRequest(request: BackgroundRequest): Promise<BackgroundResponse> {
   try {
     switch (request.type) {
-      case "SAVE_TABS":
-        return { ok: true, session: await saveTabs(request.target) };
+      case "SAVE_TABS": {
+        const { session, skipped } = await saveTabs(request.target);
+        return { ok: true, session, skipped };
+      }
       case "SAVE_CURRENT_TAB":
         return { ok: true, session: await saveCurrentTab(request.tabId) };
       case "RESTORE_SESSION": {
@@ -266,7 +274,7 @@ async function handleRequest(request: BackgroundRequest): Promise<BackgroundResp
         await setSessionOrder([session.id, ...order]);
         flashSavedBadge();
         captureThenMaybeClose(pairsFor(stashTabs, chromeTabs), chromeTabs, request.closeAfter);
-        return { ok: true, session };
+        return { ok: true, session, skipped: request.tabIds.length - chromeTabs.length };
       }
       case "ADD_SELECTED_TABS_TO_SESSION": {
         const chromeTabs = await getSavableTabs(request.tabIds);
@@ -278,7 +286,7 @@ async function handleRequest(request: BackgroundRequest): Promise<BackgroundResp
         }
         flashSavedBadge();
         captureThenMaybeClose(pairsFor(stashTabs, chromeTabs), chromeTabs, request.closeAfter);
-        return { ok: true, session };
+        return { ok: true, session, skipped: request.tabIds.length - chromeTabs.length };
       }
       case "CREATE_GROUP_FROM_OPEN_TAB": {
         const chromeTab = await getTab(request.tabId);
@@ -324,7 +332,9 @@ async function runAutoSave(): Promise<void> {
     return;
   }
   const tabs = await queryTabs({ lastFocusedWindow: true });
-  const savable = tabs.filter((t) => isSavableChromeTab(t) && !isTabPinned(t));
+  // Pinned tabs included: this snapshot is crash insurance, so leaving them out
+  // meant a crash could still cost you tabs. Auto-save never closes anything.
+  const savable = tabs.filter((t) => isSavableChromeTab(t));
   if (savable.length === 0) return;
   const now = Date.now();
   const stashTabs = savable.map((t) => createStashTab(t, now));
@@ -363,25 +373,30 @@ async function addCurrentTabToSession(tabId: number | undefined, sessionId: stri
 type CapturePair = { tabId?: number; stashId: string; url: string; title: string };
 
 async function captureContent(pairs: CapturePair[]): Promise<void> {
+  // Each tab is bounded on its own so one blocked page cannot hold up the batch,
+  // and the batch is bounded again by the caller as a backstop.
   await Promise.all(
-    pairs.map(async ({ tabId, stashId, url, title }) => {
-      if (typeof tabId !== "number") return;
-      try {
-        const [injection] = await chrome.scripting.executeScript({
-          target: { tabId },
-          func: extractReadable,
-        });
-        const result = injection?.result as { text: string; html: string } | undefined;
-        const text = (result?.text ?? "").slice(0, MAX_CONTENT_CHARS);
-        const html = (result?.html ?? "").slice(0, MAX_SNAPSHOT_CHARS);
-        if (text.trim().length > 0) {
-          await putPageContent({ id: stashId, url, title, text, html: html || undefined, capturedAt: Date.now() });
-        }
-      } catch {
-        // Not scriptable (restricted scheme, discarded tab, etc.) — skip it.
-      }
-    }),
+    pairs.map((pair) => settleWithin(captureOne(pair), CAPTURE_TAB_TIMEOUT_MS, undefined)),
   );
+}
+
+async function captureOne({ tabId, stashId, url, title }: CapturePair): Promise<void> {
+  if (typeof tabId !== "number") return;
+  try {
+    const [injection] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: extractReadable,
+    });
+    const result = injection?.result as { text: string; html: string } | undefined;
+    const text = (result?.text ?? "").slice(0, MAX_CONTENT_CHARS);
+    const html = (result?.html ?? "").slice(0, MAX_SNAPSHOT_CHARS);
+    if (text.trim().length > 0) {
+      await putPageContent({ id: stashId, url, title, text, html: html || undefined, capturedAt: Date.now() });
+    }
+  } catch {
+    // Not scriptable (restricted scheme, discarded tab, withheld host access) —
+    // the tab is still saved, just link-only. Never a reason to fail the stash.
+  }
 }
 
 /**
@@ -451,15 +466,30 @@ function pairsFor(stashTabs: StashSession["tabs"], chromeTabs: chrome.tabs.Tab[]
   return stashTabs.map((t, i) => ({ tabId: chromeTabs[i]?.id, stashId: t.id, url: t.url, title: t.title }));
 }
 
-/** Capture text for the just-stashed tabs, then (optionally) close them once capture is done. */
+/**
+ * Capture text for the just-stashed tabs, then (optionally) close them.
+ *
+ * Capture is bounded twice over (per tab, then the whole batch) because closing is
+ * the thing the user actually asked for. Waiting on capture indefinitely used to
+ * mean tabs never closed at all, and the delay also let tab ids go stale, which
+ * then poisoned the batched remove. Capture that misses the deadline keeps running
+ * and still lands; it just stops holding the close hostage.
+ */
 function captureThenMaybeClose(pairs: CapturePair[], chromeTabs: chrome.tabs.Tab[], close: boolean) {
-  const done = captureContent(pairs);
-  if (close) void done.finally(() => void closeTabsSafely(chromeTabs).catch(() => undefined));
+  const captured = settleWithin(captureContent(pairs), CAPTURE_TOTAL_TIMEOUT_MS, undefined);
+  if (!close) return;
+  void captured.then(() =>
+    closeTabsSafely(chromeTabs).catch((error) => {
+      console.warn("[Stash] Closing tabs after stash failed:", error);
+    }),
+  );
 }
 
 async function saveTabs(target: SaveTarget) {
   const tabs = await queryTabs(target === "all-windows" ? {} : { lastFocusedWindow: true });
-  const tabsToSave = tabs.filter((tab) => isSavableChromeTab(tab) && !isTabPinned(tab));
+  // Pinned tabs are stashed and closed like any other. Skipping them left tabs
+  // behind after a stash, which reads as "it didn't work" no matter how deliberate.
+  const tabsToSave = tabs.filter((tab) => isSavableChromeTab(tab));
 
   if (tabsToSave.length === 0) {
     throw new Error("No saveable tabs found.");
@@ -474,7 +504,9 @@ async function saveTabs(target: SaveTarget) {
   // is safely stored: the popup gets its confirmation without waiting, and a
   // capture/close hiccup can never turn a successful save into an error.
   captureThenMaybeClose(pairsFor(session.tabs, tabsToSave), tabsToSave, true);
-  return session;
+  // Anything Chrome won't let us touch stays open. Report it so the popup can say
+  // why, rather than leaving the user to guess that the stash half-failed.
+  return { session, skipped: tabs.length - tabsToSave.length };
 }
 
 async function saveCurrentTab(tabId?: number) {
@@ -729,8 +761,22 @@ function removeTabs(tabIds: number[]): Promise<void> {
 async function closeTabsSafely(tabs: chrome.tabs.Tab[]) {
   const tabIds = tabs.flatMap((tab) => (typeof tab.id === "number" ? [tab.id] : []));
   if (tabIds.length === 0) return;
-  await keepAffectedWindowsOpen(tabs, tabIds);
-  await removeTabs(tabIds);
+
+  // Keeping the window alive is a courtesy; failing at it must never cost the user
+  // the close they actually asked for. Previously a throw here skipped removeTabs
+  // entirely and nothing closed, silently.
+  try {
+    await keepAffectedWindowsOpen(tabs, tabIds);
+  } catch (error) {
+    console.warn("[Stash] Could not add a blank tab before closing:", error);
+  }
+
+  const { failed } = await closeTabsResiliently(tabIds, removeTabs);
+  if (failed.length > 0) {
+    // Almost always tabs that were already gone. Worth surfacing in the console
+    // rather than swallowing, so a real regression is visible next time.
+    console.warn(`[Stash] ${failed.length} tab(s) could not be closed:`, failed);
+  }
 }
 
 async function keepAffectedWindowsOpen(tabsToClose: chrome.tabs.Tab[], tabIdsToClose: number[]) {

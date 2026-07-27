@@ -38,6 +38,14 @@ export type BackgroundResponse =
       restore?: RestoreSummary;
       /** Updated settings after an UPDATE_SETTINGS request. */
       settings?: StashSettings;
+      /**
+       * How many tabs were left alone because Chrome does not let an extension
+       * touch them (chrome:// pages, the Web Store, other extensions' pages).
+       * They stay open deliberately -- we cannot save them, so we must not close
+       * them. Surfaced so the user is told, instead of silently seeing tabs
+       * survive a stash and assuming it failed.
+       */
+      skipped?: number;
     }
   | { ok: false; error: string };
 

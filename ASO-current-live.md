@@ -1,109 +1,127 @@
-# Stash - Live Store Listing (v1.3.1)
+# Stash - Live Store Listing (v1.3.3)
 
 > The current source of truth for the published Chrome Web Store listing.
 > Title and summary ship from the package (`wxt.config.ts`); the description is
 > pasted into the dashboard. Strategy and keyword rationale live in [ASO.md](ASO.md).
-> No competitor names, anywhere. No "forever" claims.
+>
+> **No competitor talk of any kind. Not names, and not unnamed swipes either.**
+> "Every other tab manager only saves a link", "this is the part nothing else does",
+> "unlike other extensions" are all the same violation wearing a disguise. The listing
+> describes what Stash does and stops there. If a sentence only lands because the
+> reader pictures someone else's product, cut it and say the thing straight.
+> No "forever" claims.
 
-## The rule this rewrite is built on
+## The positioning
 
-**Discovery terms and differentiation terms are different jobs, and the title is a
-discovery field.**
+> **Closing a tab should never feel like losing it.**
 
-The previous title led with "Search Inside Saved Tabs". That is the correct *pitch*
-and a terrible *query*: nobody types it into the store box, so we ranked first for
-zero volume. The wedge sells the install once someone is looking at the listing. It
-cannot be what makes them look.
+The feeling we sell is **relief**. You can close the lot, right now, and nothing bad
+happens. Your tabs are safe, they are yours, and one click brings them back.
 
-So: the title leads with a phrase people actually type, then carries the wedge, then
-the two category words. The wedge moves to the summary, the first line of the
-description, and screenshot 1, where it does its real job of converting.
+Two things changed from the previous listing:
+
+- **Search-inside is no longer the hook.** Good feature, wrong job. It is a reason to
+  stay, not a reason to arrive, because a user who has never had it does not know to
+  want it. Tab guilt is a feeling people already have today and recognise in one line.
+  Search now sits in a supporting section.
+- **The title got short.** Everything established in this category runs 30 to 45
+  characters, brand first. A 59-character keyword sentence reads as try-hard beside
+  them and gets truncated in search results anyway. The length was buying keywords we
+  could not rank on regardless.
 
 ## Title
 ```
-Save Tabs, Search Inside Them - Stash Tab & Session Manager
+Stash - Close Tabs Without Losing Them
 ```
-59 / 75 characters. Every segment is doing work:
-- `Save Tabs` - a real, moderate-competition query, and the literal action a user
-  wants. Prime position, where the store weights title matches hardest.
-- `Search Inside Them` - the wedge, and it makes the title read as a sentence rather
-  than keyword soup. Survives the ~45-character truncation in search results, so the
-  differentiator is still visible in the list view.
-- `Tab & Session Manager` - both category terms in one phrase. We will never rank on
-  the head of either, but they qualify us for the long tail ("session manager for
-  chrome", "tab manager save tabs") where the incumbents are not optimizing.
+38 characters, inside the band the category occupies.
 
-Brand sits mid-string on purpose. Convention in this category is brand-first, but a
-brand nobody searches earns nothing in the highest-weighted position on the listing.
+It states the promise as plainly as it can be stated. `Close Tabs` is the action that
+causes the anxiety, `Without Losing Them` is the answer, and there is nothing clever
+in the way. It reads like a person talking rather than a listing competing, which is
+the point of dropping the keyword sentence in the first place.
+
+**The trade, made deliberately:** this title does not contain `Tab Manager`, so the
+title alone is not eligible for the long tail hanging off the category term. That is
+paid for in two places. `Tab Manager` now opens the summary, and the description body
+still carries it. Title matches weigh most, so this is a real cost, accepted in
+exchange for a line that actually lands on a human being.
+
+`Close Tabs` and `Tabs` are still in the title, so the closing-related queries are
+covered directly.
+
+Alternates held in reserve:
+- `Stash Tab Manager - Save Tabs for Later` (39) - keyword and feeling in the same words
+- `Stash - Save Your Tabs, Clear Your Head` (39) - best purely emotional, buys no search
+- `Stash - Save and Restore Tabs in One Click` (42) - best for discovery, says nothing about feel
+- `Stash - Close Tabs, Keep Them All` (33)
 
 ## Summary
 ```
-Save all your tabs in one click to free up memory. Later, find any page by the words that were inside it. Local and private.
+A tab manager that saves every open tab in one click and frees your memory. They stay safe on your device until you want them back.
 ```
-124 / 132 characters. Picks up `free up memory`, the highest-volume phrase we could
-not fit in the title, then delivers the wedge in plain language.
+130 / 132. Opens with `tab manager` to recover the category term the title gives up,
+then `saves every open tab`, `one click` and `frees your memory` (the highest-volume
+phrase that will not fit in a 38-character title), and closes on the safety promise.
+
+Deliberately does **not** repeat the title. The old summary opened "Close your tabs
+without losing them", which is now the title verbatim, and a summary that echoes the
+title wastes the only other 132 characters the store gives us.
 
 ## Description
 ```
-You saved that page. Weeks later you cannot remember the site or the title, only a phrase that was written on it. Type that phrase into Stash and the page comes back.
+You know the feeling. Twenty tabs open, all of them "important", and you cannot close any of them in case you need one later. So they sit there, slowing everything down.
 
-That is the difference. Every other tab manager saves a link. Stash saves the words on the page too, so you can find anything you kept by what you actually read, not by what it happened to be called.
+Stash is a tab manager built around that one problem. One click saves every tab in the window and closes them. They are safe in a named group on your own machine, and one click puts them all back.
 
-SAVE YOUR TABS IN ONE CLICK
-One click saves every tab in your window into a named group, then closes them. Your window is clear, your memory and CPU go back to the tabs you are actually using, and nothing is lost. Bring the whole group back whenever you want, or reopen a single tab.
+Close everything. Nothing bad happens.
+
+SAVE EVERYTHING, OR ONLY WHAT YOU PICK
+Click the toolbar icon to save every open tab at once. Or pick the exact ones you want, by clicking them or dragging a box across a run of them, and save only those. What you pick can start a new group or drop straight into a group you already have. Right-click any page to save just that tab. There is a keyboard shortcut too, and you can change it to whatever you like.
+
+CLOSING IS YOUR CALL
+Save and close in one move when you want the window clear. Or save and leave everything open, when you only want a copy of where you are. Stash remembers which way you prefer and does that next time.
+
+BRING THEM BACK
+Restore a whole group, or click a single tab to take only that one. Tabs come back unloaded and load when you click them, so hundreds reopen without stalling your browser.
 
 FREE UP MEMORY
-Every open tab is a live page holding RAM. Save a group and Stash hands that memory back. Restoring is just as light: tabs come back unloaded and load only when you click them, so even hundreds of tabs will not choke your browser.
+Every open tab is a live page holding RAM. Saving a group hands it straight back.
 
-SEARCH INSIDE THE PAGES YOU SAVED
-One search box covers group names, tab titles, addresses, and the full text of the pages you saved. The matching line is shown in the result, so you can see it is the right page before you open it. This is the part nothing else does.
-
-OPEN A SAVED COPY, OFFLINE
-Stash keeps a readable copy of every page you save. Open it instantly from your own disk with no network, and read it even if the original has changed, gone behind a paywall, or disappeared.
-
-NEVER LOSE A SESSION
-- Press Ctrl+Shift+S (Cmd+Shift+S on Mac) to save everything without opening the popup.
-- Save a single tab from the right-click menu.
-- Auto-save snapshots your tabs every few minutes, so a crash or an accidental close never sets you back.
-- Deleted groups sit in the trash for 30 days.
+BUILT SO YOU DO NOT LOSE TABS
+- Auto-save snapshots your tabs every few minutes, so a crash costs you nothing.
 - Undo on every destructive action.
-- Export or import your whole library as JSON whenever you want.
+- Deleted groups sit in the trash for 30 days.
+- Saving commits before a single tab closes, so a save never half-happens.
+- Export or import your whole library as JSON. Nothing is locked in.
+
+FIND ANY TAB
+Search group names, titles and addresses. It also searches the text of the pages you saved, so a half-remembered phrase is enough to get one back. Every saved page keeps a readable offline copy that opens instantly from your disk.
 
 MADE TO LIVE IN
-Rename groups, reorder them, drag tabs between them, select many at once, and sort however you like. Light and dark themes built in. It stays quick when your library gets big.
+Rename, reorder, drag tabs between groups, select several at once, sort how you like. Light and dark themes.
 
 PRIVATE BY DEFAULT
-Stash reads a page only at the moment you choose to save that tab. It does not read, watch, or capture the tabs you have open, and it never runs in the background.
+Stash reads a page only at the moment you save that tab, never in the background. Everything then stays on your device. No account, no servers, no analytics, nothing sold.
 
-Everything then stays on your device, including the page text that makes search work. No account, no servers, no analytics, no tracking. Nothing is ever uploaded or sold.
-
-Free to use. Install it, press Ctrl+Shift+S, and get your window back.
+Free to use. Install it, save your first group, and let the tabs go.
 ```
 
-Keyword coverage in the body, all placed in sentences a human would actually write:
-`tab manager`, `save tabs`, `free up memory`, `session`, `restore`, `search inside
-pages`, `offline`, `crash recovery`, `auto-save`, `export import`, `dark mode`,
-`private`, `local`.
+Roughly 40% shorter than the previous version. Keyword coverage held: `tab manager`,
+`save tabs`, `close tabs`, `save tabs for later`, `free up memory`, `restore`, `group`,
+`auto-save`, `crash`, `export import`, `dark mode`, `offline`, `private`, `local`.
 
 ## Other listing fields
 - **Category:** Tools
-- **Language:** English. Localizing is a real lever but it multiplies impressions, and
-  at a cold start there are almost none to multiply. Revisit after the first few
-  hundred installs (see ASO.md §6).
+- **Language:** English.
 - **Screenshots:** `store-assets/screenshots/shot-1..5` (+ `promo-small`,
-  `promo-marquee`). Shot 1 must carry the wedge, since the title now leads with the
-  discovery term instead. Regenerate with `node .aso/render_store.mjs`.
+  `promo-marquee`). Shot 1 now has to carry **relief**, not the search feature. The
+  strongest single frame is a crowded window collapsing to a clean one with the group
+  saved beside it. Regenerate with `node .aso/render_store.mjs`.
 - **Homepage URL:** `https://stashyourtabs.com/`
 - **Support URL:** `https://stashyourtabs.com/support`
 
-Both URL fields were empty in the dashboard. Fill them. They are a trust signal in the
-listing, a ranking input, and the only route a confused user has to reach you instead
-of leaving a one-star review.
-
-## Permissions justification (required for the v1.3 review)
-v1.3 adds the `scripting` permission and host access (`<all_urls>`). Chrome flags host
-access for an in-depth review, which delays publishing. This is expected and
-approvable. Paste the text below into the matching dashboard fields.
+## Permissions justification
+`scripting` + `<all_urls>` trigger an in-depth review. Expected and approvable.
 
 **scripting:**
 > Stash uses the scripting API to read the visible text of a tab at the moment the user chooses to save (stash) that tab. It injects a one-time script that returns the page's readable text, which Stash stores locally on the user's device so the user can later search inside the pages they saved and open an offline readable copy. The script runs only in response to an explicit save action, never in the background, and the extracted text is never sent to any server.
@@ -112,5 +130,3 @@ approvable. Paste the text below into the matching dashboard fields.
 > Stash lets the user save any open tab, from any website, into a local group and search inside the saved page's text. To read the page text of whatever tab the user saves, Stash needs host access to the site that tab is on. Because a user can save a tab from any website, this access must cover all sites. It is used only at the moment the user saves a tab, solely to read that page's text for the extension's core save-and-search feature. No page content is transmitted, sold, or shared; everything is stored locally on the user's device.
 
 **Data safety form:** data type "Website content"; used only for the app's core feature; stored locally on the device; not sold or transferred.
-
-Note: the in-depth review is triggered by the broad host access. If you ever want to avoid it, the alternative is `optional_host_permissions` (request access at runtime the first time content capture runs). That is a code change and adds a one-time grant prompt, so it is only worth doing if the review delay becomes a real problem.

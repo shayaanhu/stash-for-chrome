@@ -9,10 +9,10 @@ export default defineConfig({
     plugins: [tailwindcss()]
   }),
   manifest: {
-    name: "Save Tabs, Search Inside Them - Stash Tab & Session Manager",
+    name: "Stash - Close Tabs Without Losing Them",
     description:
-      "Save all your tabs in one click to free up memory. Later, find any page by the words that were inside it. Local and private.",
-    version: "1.3.1",
+      "A tab manager that saves every open tab in one click and frees your memory. They stay safe on your device until you want them back.",
+    version: "1.3.4",
     minimum_chrome_version: "116",
     permissions: ["contextMenus", "storage", "unlimitedStorage", "tabs", "alarms", "favicon", "scripting"],
     host_permissions: ["<all_urls>"],
